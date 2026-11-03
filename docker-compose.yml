@@ -1,0 +1,47 @@
+# Local / demo stack: MySQL 8 + FastAPI + React (nginx).
+#   docker compose up --build
+#   docker compose exec backend python -m scripts.seed      # optional demo data
+# Then open http://localhost:8080
+#
+# For production, put this behind a TLS-terminating proxy (Caddy, Traefik, or a
+# cloud load balancer) so all traffic is HTTPS, as required by SRS section 3.4.
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: stockwise
+      MYSQL_USER: stockwise
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-stockwise}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-root}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ustockwise", "-p${MYSQL_PASSWORD:-stockwise}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: mysql+pymysql://stockwise:${MYSQL_PASSWORD:-stockwise}@db:3306/stockwise?charset=utf8mb4
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret}
+      JWT_EXPIRE_MINUTES: 480
+      CORS_ORIGINS: http://localhost:8080
+      BUSINESS_TIMEZONE: Africa/Nairobi
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  dbdata:
