@@ -2,7 +2,21 @@
 
 StockWise keeps a running count of everything on your shelves. Every sale, delivery or correction is recorded with who did it and when, so the number on screen should match the number on the shelf.
 
-There are two kinds of account:
+## Setting up your business
+
+Each business on StockWise has its own private space. Other businesses can't see your products, stock, staff or reports, and you can't see theirs.
+
+1. **Create your business:** go to the StockWise site and choose **Create an account for your business**. Enter your shop's name, your name, your email and a password. You become the business's admin.
+2. **Follow the three getting-started steps** on your dashboard: add your products, invite your staff, and record stock.
+3. **Invite staff:** go to **Users → Invite people**, choose Staff or Admin, and tap **Create invite link**. Send the link by WhatsApp, SMS or email. The person opens it, enters their name and a password, and is in your business straight away.
+   - Each link works once and expires (1, 7 or 30 days).
+   - To make sure only one person can use it, enter their email when creating it.
+   - To stop a link from working, use **Cancel link** under *Pending invite links*.
+   - You can also create an account for someone directly with **Add user** and give them the password.
+
+Each email belongs to one business. Someone who works at two shops uses a different email for each.
+
+There are two kinds of account in a business:
 
 - **Staff** can look up products and record stock in and out.
 - **Admins** can do everything staff can, and also manage products, suppliers, reports and user accounts.
@@ -11,7 +25,7 @@ There are two kinds of account:
 
 Open StockWise in Chrome or Edge, on a computer or a phone. Enter your email and password, then tap **Log in**.
 
-If you forget your password, ask the shop admin to set a new one for you. For security, you are logged out automatically after 8 hours.
+If you forget your password, ask the shop admin to set a new one for you. For security, you are logged out automatically after 8 hours. After many wrong passwords in a row, StockWise asks you to wait a few minutes before trying again.
 
 ## The dashboard
 
@@ -84,6 +98,8 @@ Add the businesses you buy from, with contact person, phone, email and address.
 **Audit log.** Every stock change, showing who made it, when, how it was entered (typed, scanner or camera), how many units, the stock afterwards, and whether an override was used. Filter by user, product, in/out or method, and export to CSV.
 
 ## Users (admins)
+
+The Users page also lets you rename your business and manage invite links (see *Setting up your business* above).
 
 - **Add user:** set a name, email, role and starting password (at least 8 characters). Share the password with them privately.
 - **Edit:** change their name or role, or set a new password.

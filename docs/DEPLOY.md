@@ -29,11 +29,11 @@ export DATABASE_SSL_CA=ca.pem
 python -m scripts.seed
 ```
 
-Paste your own Service URI, and keep the single quotes. This creates the tables over an encrypted connection and loads the demo shop.
+Paste your own Service URI, and keep the single quotes. This creates the tables over an encrypted connection and loads two demo businesses (Mama Njeri Duka and Kilimani Hardware).
 
-To start empty instead, skip this step and set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` on Render. The tables are created automatically on first start.
+To start empty instead, skip this step. The tables are created automatically on first start, and anyone can create a business at `/signup`.
 
-**Security:** the demo passwords are public in the README. After deploying, log in as admin and change the passwords on the **Users** page. Give your assessors their login details in your submission instead.
+**Security:** the demo passwords are public in the README. After deploying, log in as each demo admin and change the passwords on the **Users** page, then give your assessors the new details in your submission. Assessors can also create their own business at `/signup`.
 
 ## 3. Deploy the app on Render
 
