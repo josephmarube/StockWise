@@ -19,7 +19,8 @@ export default function Products() {
   const view = sp.get('view') || 'active' // active | archived
   const sort = sp.get('sort') || 'name'
   const offset = Number(sp.get('o') || 0)
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(sp.get('new') === '1')
+  const prefillBarcode = sp.get('barcode') || ''
 
   const cats = useApi('/api/categories')
   const { data, error, loading, reload } = useApi('/api/products', {
@@ -45,7 +46,7 @@ export default function Products() {
       <div className="toolbar">
         <div className="search-input grow">
           <Icon name="search" size={18} />
-          <input type="search" placeholder="Search name or SKU" value={q} aria-label="Search products"
+          <input type="search" placeholder="Search name, SKU or barcode" value={q} aria-label="Search products"
             onChange={(e) => { setQ(e.target.value); setParam('o', '') }} />
         </div>
         <select value={category} onChange={(e) => setParam('cat', e.target.value)} aria-label="Category">
@@ -114,7 +115,15 @@ export default function Products() {
         </>
       )}
 
-      {adding && <ProductForm onClose={() => setAdding(false)} onSaved={(p) => { setAdding(false); nav(`/products/${p.id}`) }} />}
+      {adding && isAdmin && (
+        <ProductForm initialBarcode={prefillBarcode}
+          onClose={() => {
+            setAdding(false)
+            const n = new URLSearchParams(sp); n.delete('new'); n.delete('barcode')
+            setSp(n, { replace: true })
+          }}
+          onSaved={(p) => { setAdding(false); nav(`/products/${p.id}`) }} />
+      )}
     </div>
   )
 }
