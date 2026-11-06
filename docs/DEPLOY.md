@@ -24,8 +24,9 @@ Check the free plan's limits in the Aiven console (storage, and whether idle ser
 In `backend/`, with the venv active:
 
 ```bash
-export DATABASE_URL='mysql://avnadmin:…@….aivencloud.com:12345/defaultdb?ssl-mode=REQUIRED'
+export DATABASE_URL='<your Aiven Service URI>'
 export DATABASE_SSL_CA=ca.pem
+export SEED_PASSWORD='<choose a password for the demo accounts>'
 python -m scripts.seed
 ```
 
@@ -33,7 +34,7 @@ Paste your own Service URI, and keep the single quotes. This creates the tables 
 
 To start empty instead, skip this step. The tables are created automatically on first start, and anyone can create a business at `/signup`.
 
-**Security:** the demo passwords are public in the README. After deploying, log in as each demo admin and change the passwords on the **Users** page, then give your assessors the new details in your submission. Assessors can also create their own business at `/signup`.
+**Security:** the demo password is the one you chose, and it isn't stored anywhere in the code. Give it to your assessors in your submission document. Assessors can also create their own business at `/signup`.
 
 ## 3. Deploy the app on Render
 
@@ -72,6 +73,7 @@ Every `git push` to `main` redeploys automatically.
 With Docker Desktop installed:
 
 ```bash
+cp .env.example .env      # fill in MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, JWT_SECRET
 docker compose up --build
 docker compose exec app python -m scripts.seed
 ```

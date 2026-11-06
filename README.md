@@ -44,13 +44,19 @@ Prerequisites: Python 3.11+, Node 20+, MySQL 8.
 
 **1. Database**
 
+Choose a password for the database user, then run (with `mysql -uroot`):
+
 ```sql
 CREATE DATABASE stockwise CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'stockwise'@'localhost' IDENTIFIED BY 'stockwise';
-GRANT ALL ON stockwise.* TO 'stockwise'@'localhost';
+CREATE DATABASE stockwise_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;  -- for the test suite
+CREATE USER 'stockwise'@'%' IDENTIFIED BY '<your-db-password>';
+GRANT ALL ON stockwise.* TO 'stockwise'@'%';
+GRANT ALL ON stockwise_test.* TO 'stockwise'@'%';
 ```
 
-On macOS: `brew install mysql && brew services start mysql`, then run the SQL above with `mysql -uroot`.
+On macOS, install MySQL first: `brew install mysql && brew services start mysql`.
+
+No passwords or secrets are written in this repository. Everything comes from `backend/.env` (git-ignored) locally, or from the host's environment settings in production.
 
 **2. Backend**
 
@@ -58,8 +64,8 @@ On macOS: `brew install mysql && brew services start mysql`, then run the SQL ab
 cd backend
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env          # edit JWT_SECRET
-python -m scripts.seed        # runs migrations + loads demo data
+cp .env.example .env          # put your database password in DATABASE_URL
+python -m scripts.seed        # runs migrations, loads demo data, prints the demo password
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -82,13 +88,15 @@ Open http://localhost:5173. Vite proxies `/api` to port 8000.
 
 **Demo accounts** (from the seed script). There are two separate businesses, so you can see that each one sees only its own data:
 
-| Business | Role | Email | Password |
-|---|---|---|---|
-| Mama Njeri Duka (shop) | Admin | admin@stockwise.co.ke | Admin@12345 |
-| | Staff | grace@stockwise.co.ke | Staff@12345 |
-| | Staff | brian@stockwise.co.ke | Staff@12345 |
-| Kilimani Hardware | Admin | wanjiru@kilimanihardware.co.ke | Admin@12345 |
-| | Staff | daniel@kilimanihardware.co.ke | Staff@12345 |
+| Business | Role | Email |
+|---|---|---|
+| Mama Njeri Duka (shop) | Admin | admin@stockwise.co.ke |
+| | Staff | grace@stockwise.co.ke |
+| | Staff | brian@stockwise.co.ke |
+| Kilimani Hardware | Admin | wanjiru@kilimanihardware.co.ke |
+| | Staff | daniel@kilimanihardware.co.ke |
+
+All demo accounts share one password. The seed script prints it at the end. To choose it yourself, set `SEED_PASSWORD` in `backend/.env` (8+ characters) before seeding.
 
 **Or create your own business:** open http://localhost:5173/signup. To add staff, go to **Users → Invite people** and send them the link.
 
@@ -111,6 +119,7 @@ Production is a single Docker image (root `Dockerfile`): FastAPI serves the API 
 - **Deploy to Render + Aiven:** follow [docs/DEPLOY.md](docs/DEPLOY.md). `render.yaml` is a ready-made Render Blueprint.
 - **Run the production image locally** (needs Docker Desktop):
   ```bash
+  cp .env.example .env               # fill in MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, JWT_SECRET
   docker compose up --build
   docker compose exec app python -m scripts.seed   # optional demo data
   ```
@@ -123,15 +132,15 @@ cd backend
 pytest                                   # fast, in-memory SQLite (150 tests)
 
 # Full suite against real MySQL (157 tests), adding the row-lock concurrency and migration tests:
-TEST_DATABASE_URL=mysql+pymysql://stockwise:stockwise@127.0.0.1/stockwise_test pytest
+TEST_DATABASE_URL='mysql+pymysql://stockwise:<your-db-password>@127.0.0.1/stockwise_test' pytest
 ```
 
-The MySQL run needs an empty `stockwise_test` database the `stockwise` user can access. Tests are named after the requirement they verify (`test_fr2_2_...`, `test_nfr1_...`). See `docs/TRACEABILITY.md`.
+The MySQL run needs the empty `stockwise_test` database from step 1. Test accounts, passwords and keys are generated randomly on each run. Tests are named after the requirement they verify (`test_fr2_2_...`, `test_nfr1_...`). See `docs/TRACEABILITY.md`.
 
 **Performance (NFR3).** Start the API against a seeded database, then run:
 
 ```bash
-python -m scripts.load_test --users 10 --rounds 25
+python -m scripts.load_test --users 10 --rounds 25   # uses SEED_PASSWORD, or pass --password
 ```
 
 Measured during development: 10 concurrent users, 1,000 requests, p95 of 83–117 ms per operation, 0 errors (target is under 1,000 ms).

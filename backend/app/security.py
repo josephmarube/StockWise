@@ -1,5 +1,6 @@
 """Password hashing (NFR1) and JWT issuing/verification (FR4.1)."""
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -21,7 +22,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 # Used to keep login timing similar whether or not the email exists.
-_DUMMY_HASH = hash_password("timing-equaliser")
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 
 
 def dummy_verify() -> None:

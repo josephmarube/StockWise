@@ -6,6 +6,8 @@ import { useAuth } from '../lib/auth'
 import { fmtDate } from '../lib/format'
 import { Confirm, ErrorNote, Field, Icon, Modal, Spinner, useToast } from '../components/ui'
 
+const TOO_SHORT = 'Use at least 8 characters.'
+
 export default function Users() {
   const { user: me } = useAuth()
   const toast = useToast()
@@ -114,7 +116,7 @@ function UserForm({ user, isSelf, onClose, onSaved }) {
     const errs = {}
     if (!f.name.trim()) errs.name = 'Enter a name.'
     if (!user && !/^\S+@\S+\.\S+$/.test(f.email.trim())) errs.email = 'Enter a valid email address.'
-    if ((!user || f.password) && f.password.length < 8) errs.password = 'Use at least 8 characters.'
+    if ((!user || f.password) && f.password.length < 8) errs.password = TOO_SHORT
     setErrors(errs)
     if (Object.keys(errs).length) return
     setBusy(true)

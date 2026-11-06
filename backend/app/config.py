@@ -1,6 +1,7 @@
 """Application settings, loaded from environment variables (see .env.example)."""
 import logging
 import os
+import secrets
 import ssl
 import tempfile
 from functools import lru_cache
@@ -11,13 +12,12 @@ from dotenv import load_dotenv
 load_dotenv()
 log = logging.getLogger("stockwise")
 
-DEFAULT_SECRET = "change-me-in-production"
 _TLS_MODES = {"required", "verify_ca", "verify_identity", "verify-ca", "verify-full"}
 
 
 def normalise_database_url(raw: str) -> tuple[str, bool]:
     """Accept a hosting provider's URI as-is, e.g. Aiven's
-    'mysql://avnadmin:pw@host:port/defaultdb?ssl-mode=REQUIRED'.
+    'mysql://<user>:<password>@<host>:<port>/defaultdb?ssl-mode=REQUIRED'.
 
     Returns (SQLAlchemy URL for PyMySQL, whether TLS is required).
     """
@@ -43,9 +43,13 @@ def normalise_database_url(raw: str) -> tuple[str, bool]:
 class Settings:
     def __init__(self) -> None:
         self.environment: str = os.getenv("ENVIRONMENT", "development").lower()
-        self.database_url, tls_in_url = normalise_database_url(
-            os.getenv("DATABASE_URL", "mysql+pymysql://stockwise:stockwise@localhost:3306/stockwise")
-        )
+        raw_url = os.getenv("DATABASE_URL", "").strip()
+        if not raw_url:
+            raise RuntimeError(
+                "Set DATABASE_URL (see backend/.env.example), e.g. "
+                "mysql+pymysql://<user>:<password>@127.0.0.1:3306/stockwise"
+            )
+        self.database_url, tls_in_url = normalise_database_url(raw_url)
         # TLS to the database: required by Aiven and most hosted MySQL.
         # DATABASE_CA_CERT holds the CA certificate text (PEM); DATABASE_SSL_CA is a path to it.
         self.db_ca_cert: str | None = os.getenv("DATABASE_CA_CERT") or None
@@ -55,7 +59,7 @@ class Settings:
         )
         self.db_verify_hostname: bool = _truthy(os.getenv("DATABASE_SSL_VERIFY_HOSTNAME", "true"))
 
-        self.jwt_secret: str = os.getenv("JWT_SECRET", DEFAULT_SECRET)
+        self.jwt_secret: str = os.getenv("JWT_SECRET", "").strip()
         self.jwt_algorithm: str = "HS256"
         self.jwt_expire_minutes: int = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
         self.cors_origins: list[str] = [
@@ -67,16 +71,19 @@ class Settings:
         self.business_timezone: str = os.getenv("BUSINESS_TIMEZONE", "Africa/Nairobi")
         self.bootstrap_admin_email: str | None = os.getenv("BOOTSTRAP_ADMIN_EMAIL")
         self.bootstrap_admin_password: str | None = os.getenv("BOOTSTRAP_ADMIN_PASSWORD")
-        self.bootstrap_business_name: str = os.getenv("BOOTSTRAP_BUSINESS_NAME", "My Business")
+        self.bootstrap_business_name: str = os.getenv("BOOTSTRAP_BUSINESS_NAME") or "My Business"
         # Built React app to serve from the API (production image). Unset in development.
         self.static_dir: str | None = os.getenv("STATIC_DIR") or None
         # Production image runs migrations once before starting workers.
         self.migrate_on_startup: bool = _truthy(os.getenv("MIGRATE_ON_STARTUP", "true"))
 
-        if self.environment == "production" and (
-            self.jwt_secret == DEFAULT_SECRET or len(self.jwt_secret) < 32
-        ):
-            raise RuntimeError("Set JWT_SECRET to a random string of at least 32 characters.")
+        if len(self.jwt_secret) < 32:
+            if self.environment == "production":
+                raise RuntimeError("Set JWT_SECRET to a random string of at least 32 characters.")
+            # Development only: a throwaway secret, so nothing secret is ever written in code.
+            # Logins end when the server restarts; set JWT_SECRET in .env to keep them.
+            self.jwt_secret = secrets.token_urlsafe(48)
+            log.warning("JWT_SECRET not set; using a random one for this run (development only).")
 
     def db_connect_args(self) -> dict:
         if not self.database_url.startswith("mysql") or not self.db_tls:

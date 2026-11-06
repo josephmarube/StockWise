@@ -1,8 +1,12 @@
+# ruff: noqa: E402  -- environment must be set before the app is imported
 import os
+import secrets
 
 # Must be set before the app (and its engine) is imported.
+# Secrets and passwords are generated per run, so none are written in the repository.
+TEST_JWT_SECRET = secrets.token_urlsafe(48)
 os.environ["DATABASE_URL"] = "sqlite://"
-os.environ["JWT_SECRET"] = "test-secret-key-that-is-at-least-32-bytes"
+os.environ["JWT_SECRET"] = TEST_JWT_SECRET
 os.environ["BCRYPT_ROUNDS"] = "4"
 os.environ.pop("BOOTSTRAP_ADMIN_EMAIL", None)
 
@@ -19,14 +23,19 @@ from app import ratelimit
 from app.models import Business, Category, Role, User
 from app.security import hash_password
 
-ADMIN = {"email": "admin@shop.co.ke", "password": "AdminPass123"}
-STAFF = {"email": "staff@shop.co.ke", "password": "StaffPass123"}
+def new_password() -> str:
+    """A random, valid password for test accounts."""
+    return secrets.token_urlsafe(12)
+
+
+ADMIN = {"email": "admin@shop.co.ke", "password": new_password()}
+STAFF = {"email": "staff@shop.co.ke", "password": new_password()}
 # A second, unrelated business used to prove isolation.
-OTHER_ADMIN = {"email": "boss@othershop.co.ke", "password": "OtherPass123"}
+OTHER_ADMIN = {"email": "boss@othershop.co.ke", "password": new_password()}
 OTHER_CATEGORY_ID = 3  # "Beverages" in the other business (same name is allowed per business)
 
 
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")  # e.g. mysql+pymysql://u:p@127.0.0.1/stockwise_test
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")  # a MySQL URL for an empty test database (see README)
 
 
 @pytest.fixture(autouse=True)

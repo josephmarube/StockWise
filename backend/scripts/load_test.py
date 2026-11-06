@@ -1,7 +1,7 @@
 """NFR3 performance check: N concurrent logged-in users doing standard CRUD-style requests.
 
-Usage (API must be running, seeded):
-    python -m scripts.load_test --base http://localhost:8000 --users 10 --rounds 20
+Usage (API must be running, seeded with a known SEED_PASSWORD):
+    SEED_PASSWORD=... python -m scripts.load_test --base http://localhost:8000 --users 10 --rounds 20
 
 Each simulated user logs in, then repeatedly: lists products, opens the dashboard,
 opens a product, and records a stock-in of 1 unit. Reports p50/p95/max latency per
@@ -9,21 +9,19 @@ operation and checks them against the 1-second target.
 """
 import argparse
 import asyncio
+import os
 import statistics
 import time
 from collections import defaultdict
 
 import httpx
 
-ACCOUNTS = [
-    ("admin@stockwise.co.ke", "Admin@12345"),
-    ("grace@stockwise.co.ke", "Staff@12345"),
-    ("brian@stockwise.co.ke", "Staff@12345"),
-]
+# Demo accounts from scripts/seed.py; they share the password given to the seed (SEED_PASSWORD).
+ACCOUNTS = ["admin@stockwise.co.ke", "grace@stockwise.co.ke", "brian@stockwise.co.ke"]
 
 
-async def user_session(client: httpx.AsyncClient, idx: int, rounds: int, timings: dict, errors: list):
-    email, pw = ACCOUNTS[idx % len(ACCOUNTS)]
+async def user_session(client: httpx.AsyncClient, idx: int, rounds: int, timings: dict, errors: list, pw: str):
+    email = ACCOUNTS[idx % len(ACCOUNTS)]
     r = await client.post("/api/auth/login", json={"email": email, "password": pw})
     r.raise_for_status()
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
@@ -49,12 +47,12 @@ async def user_session(client: httpx.AsyncClient, idx: int, rounds: int, timings
         )
 
 
-async def main(base: str, users: int, rounds: int):
+async def main(base: str, users: int, rounds: int, password: str):
     timings: dict[str, list[float]] = defaultdict(list)
     errors: list = []
     async with httpx.AsyncClient(base_url=base, timeout=30) as client:
         t0 = time.perf_counter()
-        await asyncio.gather(*(user_session(client, i, rounds, timings, errors) for i in range(users)))
+        await asyncio.gather(*(user_session(client, i, rounds, timings, errors, password) for i in range(users)))
         wall = time.perf_counter() - t0
 
     print(f"\n{users} concurrent users x {rounds} rounds  ({wall:.1f}s wall)\n")
@@ -78,5 +76,8 @@ if __name__ == "__main__":
     ap.add_argument("--base", default="http://localhost:8000")
     ap.add_argument("--users", type=int, default=10)
     ap.add_argument("--rounds", type=int, default=20)
+    ap.add_argument("--password", default=os.getenv("SEED_PASSWORD"), help="demo account password (default: $SEED_PASSWORD)")
     a = ap.parse_args()
-    raise SystemExit(0 if asyncio.run(main(a.base, a.users, a.rounds)) else 1)
+    if not a.password:
+        ap.error("give --password or set SEED_PASSWORD to the password used when seeding")
+    raise SystemExit(0 if asyncio.run(main(a.base, a.users, a.rounds, a.password)) else 1)

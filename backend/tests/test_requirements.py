@@ -6,7 +6,9 @@ import jwt
 import pytest
 
 from app.models import StockMovement
-from tests.conftest import ADMIN, STAFF
+from tests.conftest import ADMIN, STAFF, TEST_JWT_SECRET, new_password
+
+PW = new_password()
 
 
 def move(client, h, pid, type_, qty, **extra):
@@ -23,15 +25,15 @@ class TestFR4Auth:
         r = client.post("/api/auth/login", json=ADMIN)
         assert r.status_code == 200
         body = r.json()
-        claims = jwt.decode(body["access_token"], "test-secret-key-that-is-at-least-32-bytes", algorithms=["HS256"])
+        claims = jwt.decode(body["access_token"], TEST_JWT_SECRET, algorithms=["HS256"])
         assert claims["role"] == "ADMIN" and "exp" in claims
         assert body["user"]["email"] == ADMIN["email"]
 
     @pytest.mark.parametrize(
         "creds",
         [
-            {"email": ADMIN["email"], "password": "wrong"},
-            {"email": "nobody@shop.co.ke", "password": "whatever"},
+            {"email": ADMIN["email"], "password": new_password()},
+            {"email": "nobody@shop.co.ke", "password": new_password()},
         ],
     )
     def test_fr4_1_invalid_credentials_generic_error(self, client, creds):
@@ -53,7 +55,7 @@ class TestFR4Auth:
 
         tok = jwt.encode(
             {"sub": "1", "role": "ADMIN", "exp": dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=1)},
-            "test-secret-key-that-is-at-least-32-bytes",
+            TEST_JWT_SECRET,
             algorithm="HS256",
         )
         r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {tok}"})
@@ -71,7 +73,7 @@ class TestFR4Auth:
             ("get", "/api/suppliers", None),
             ("post", "/api/suppliers", {"name": "X"}),
             ("get", "/api/users", None),
-            ("post", "/api/users", {"name": "x", "email": "x@x.co", "password": "longenough"}),
+            ("post", "/api/users", {"name": "x", "email": "x@x.co", "password": PW}),
             ("get", "/api/reports/stock", None),
             ("get", "/api/reports/stock.csv", None),
             ("get", "/api/reports/audit", None),
@@ -89,8 +91,8 @@ class TestFR4Auth:
 
     def test_demoted_admin_loses_access_immediately(self, client, admin_h):
         # create a second admin, log in as them, demote them, old token no longer admin
-        client.post("/api/users", headers=admin_h, json={"name": "B", "email": "b@shop.co.ke", "password": "Password1", "role": "ADMIN"})
-        bh = {"Authorization": "Bearer " + client.post("/api/auth/login", json={"email": "b@shop.co.ke", "password": "Password1"}).json()["access_token"]}
+        client.post("/api/users", headers=admin_h, json={"name": "B", "email": "b@shop.co.ke", "password": PW, "role": "ADMIN"})
+        bh = {"Authorization": "Bearer " + client.post("/api/auth/login", json={"email": "b@shop.co.ke", "password": PW}).json()["access_token"]}
         assert client.get("/api/users", headers=bh).status_code == 200
         uid = [u for u in client.get("/api/users", headers=admin_h).json() if u["email"] == "b@shop.co.ke"][0]["id"]
         client.patch(f"/api/users/{uid}", headers=admin_h, json={"role": "STAFF"})

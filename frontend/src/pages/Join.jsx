@@ -5,6 +5,8 @@ import { useAuth } from '../lib/auth'
 import AuthShell, { Brand } from '../components/AuthShell'
 import { Field, Spinner } from '../components/ui'
 
+const TOO_SHORT = 'Use at least 8 characters.'
+
 // Opened from an invite link: /join/<token>. Creates the member's account in that business.
 export default function Join() {
   const { token } = useParams()
@@ -42,7 +44,7 @@ export default function Join() {
     const errs = {}
     if (!f.name.trim()) errs.name = 'Enter your name.'
     if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) errs.email = 'Enter a valid email address.'
-    if (f.password.length < 8) errs.password = 'Use at least 8 characters.'
+    if (f.password.length < 8) errs.password = TOO_SHORT
     setErrors(errs)
     if (Object.keys(errs).length) return
     setBusy(true)

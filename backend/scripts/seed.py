@@ -5,8 +5,13 @@ The two shops show multi-business isolation: each admin sees only their own shop
 
 Usage (from backend/):  python -m scripts.seed            # refuses if data exists
                         python -m scripts.seed --reset    # drops and recreates all tables
+
+Every demo account gets the same password: SEED_PASSWORD from the environment
+(or .env), or a random one that is printed at the end. No password is stored in code.
 """
+import os
 import random
+import secrets
 import sys
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -14,6 +19,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
+import app.config  # noqa: F401  (loads .env)
 from app.database import SessionLocal
 from app.migrate import reset_database, upgrade_to_head
 from app.models import (
@@ -35,7 +41,7 @@ from app.security import hash_password
 @dataclass
 class ShopSpec:
     name: str
-    users: list            # (name, email, password, role)
+    users: list            # (name, email, role)
     suppliers: list        # (name, contact, phone, email, address)
     products: list         # (sku, name, category, price KES, threshold, opening, [supplier idx])
     end_level: dict = field(default_factory=dict)  # sku -> final stock, so alerts show
@@ -46,9 +52,9 @@ SHOPS = [
     ShopSpec(
         name="Mama Njeri Duka",
         users=[
-            ("Joseph Marube", "admin@stockwise.co.ke", "Admin@12345", Role.ADMIN),
-            ("Grace Wanjiku", "grace@stockwise.co.ke", "Staff@12345", Role.STAFF),
-            ("Brian Otieno", "brian@stockwise.co.ke", "Staff@12345", Role.STAFF),
+            ("Joseph Marube", "admin@stockwise.co.ke", Role.ADMIN),
+            ("Grace Wanjiku", "grace@stockwise.co.ke", Role.STAFF),
+            ("Brian Otieno", "brian@stockwise.co.ke", Role.STAFF),
         ],
         suppliers=[
             ("Bidco Distributors", "Peter Kamau", "+254 711 000 101", "orders@bidco-dist.example", "Industrial Area, Nairobi"),
@@ -78,8 +84,8 @@ SHOPS = [
     ShopSpec(
         name="Kilimani Hardware",
         users=[
-            ("Wanjiru Kamau", "wanjiru@kilimanihardware.co.ke", "Admin@12345", Role.ADMIN),
-            ("Daniel Mutua", "daniel@kilimanihardware.co.ke", "Staff@12345", Role.STAFF),
+            ("Wanjiru Kamau", "wanjiru@kilimanihardware.co.ke", Role.ADMIN),
+            ("Daniel Mutua", "daniel@kilimanihardware.co.ke", Role.STAFF),
         ],
         suppliers=[
             ("Bamburi Cement Depot", "Ali Hassan", "+254 755 000 505", "orders@bamburi-depot.example", "Mombasa Road, Nairobi"),
@@ -106,12 +112,12 @@ def ean13(seed: int) -> str:
     return body + str((10 - total % 10) % 10)
 
 
-def seed_shop(db, spec: ShopSpec, rng: random.Random) -> None:
+def seed_shop(db, spec: ShopSpec, rng: random.Random, password_hash: str) -> None:
     biz = Business(name=spec.name)
     db.add(biz)
     db.flush()
     bid = biz.id
-    users = [User(business_id=bid, name=n, email=e, password_hash=hash_password(p), role=r) for n, e, p, r in spec.users]
+    users = [User(business_id=bid, name=n, email=e, password_hash=password_hash, role=r) for n, e, r in spec.users]
     cats = {c: Category(business_id=bid, name=c) for c in sorted({p[2] for p in spec.products})}
     sups = [Supplier(business_id=bid, name=n, contact_person=c, phone=ph, email=e, address=a) for n, c, ph, e, a in spec.suppliers]
     db.add_all([*users, *cats.values(), *sups])
@@ -163,19 +169,24 @@ def main(reset: bool) -> None:
     else:
         upgrade_to_head()
     rng = random.Random(42)
+    password = os.getenv("SEED_PASSWORD", "").strip() or secrets.token_urlsafe(9)
+    if len(password) < 8:
+        sys.exit("SEED_PASSWORD must be at least 8 characters.")
 
     with SessionLocal() as db:
         if db.scalar(select(func.count()).select_from(User)):
             sys.exit("Database already has data. Run with --reset to wipe and reseed.")
+        pw_hash = hash_password(password)
         for spec in SHOPS:
-            seed_shop(db, spec, rng)
+            seed_shop(db, spec, rng, pw_hash)
         db.commit()
 
     print("Seeded two demo businesses. Log in with:")
     for spec in SHOPS:
         print(f"  {spec.name}")
-        for _, e, pw, r in spec.users:
-            print(f"    {r.value:5}  {e}  /  {pw}")
+        for _, e, r in spec.users:
+            print(f"    {r.value:5}  {e}")
+    print(f"  Password for every demo account: {password}")
     print("  (each product has a demo barcode; see Products > product page)")
 
 

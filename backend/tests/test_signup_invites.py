@@ -3,8 +3,12 @@ from datetime import timedelta
 
 import pytest
 
+from tests.conftest import ADMIN, new_password
+
+PW = new_password()
+
 SIGNUP = {"business_name": "Kilimani Hardware", "name": "Wanjiru Kamau",
-          "email": "Wanjiru@KilimaniHardware.co.ke", "password": "Hardware123"}
+          "email": "Wanjiru@KilimaniHardware.co.ke", "password": PW}
 
 
 def auth(token):
@@ -41,7 +45,7 @@ class TestSignup:
 
     @pytest.mark.parametrize("bad", [
         {"business_name": ""}, {"business_name": "A"}, {"name": ""},
-        {"email": "not-an-email"}, {"password": "short"},
+        {"email": "not-an-email"}, {"password": "x" * 7},
     ])
     def test_validation(self, client, bad):
         assert client.post("/api/auth/signup", json={**SIGNUP, **bad}).status_code == 422
@@ -70,7 +74,7 @@ class TestInvites:
         pre = client.get(f"/api/invites/preview/{inv['token']}")
         assert pre.status_code == 200 and pre.json()["business_name"] == "Test Shop" and pre.json()["role"] == "STAFF"
         r = client.post("/api/invites/accept", json={
-            "token": inv["token"], "name": "New Cashier", "email": "cashier@gmail.com", "password": "Cashier123"})
+            "token": inv["token"], "name": "New Cashier", "email": "cashier@gmail.com", "password": PW})
         assert r.status_code == 201, r.text
         me = r.json()["user"]
         assert me["role"] == "STAFF" and me["business"]["name"] == "Test Shop"
@@ -78,23 +82,23 @@ class TestInvites:
         assert "cashier@gmail.com" in [u["email"] for u in client.get("/api/users", headers=admin_h).json()]
         # link is single-use
         again = client.post("/api/invites/accept", json={
-            "token": inv["token"], "name": "Second", "email": "second@gmail.com", "password": "Second123"})
+            "token": inv["token"], "name": "Second", "email": "second@gmail.com", "password": PW})
         assert again.status_code == 404
         assert client.get(f"/api/invites/preview/{inv['token']}").status_code == 404
 
     def test_admin_role_invite(self, client, admin_h):
         inv = self._invite(client, admin_h, role="ADMIN")
         r = client.post("/api/invites/accept", json={
-            "token": inv["token"], "name": "Co-owner", "email": "co@gmail.com", "password": "Coowner123"})
+            "token": inv["token"], "name": "Co-owner", "email": "co@gmail.com", "password": PW})
         assert r.json()["user"]["role"] == "ADMIN"
 
     def test_email_locked_invite(self, client, admin_h):
         inv = self._invite(client, admin_h, email="Named@Gmail.com")
         wrong = client.post("/api/invites/accept", json={
-            "token": inv["token"], "name": "X", "email": "other@gmail.com", "password": "Password1"})
+            "token": inv["token"], "name": "X", "email": "other@gmail.com", "password": PW})
         assert wrong.status_code == 422
         right = client.post("/api/invites/accept", json={
-            "token": inv["token"], "name": "Named", "email": "named@gmail.com", "password": "Password1"})
+            "token": inv["token"], "name": "Named", "email": "named@gmail.com", "password": PW})
         assert right.status_code == 201
 
     def test_revoked_and_expired(self, client, admin_h, db):
@@ -109,12 +113,12 @@ class TestInvites:
         row.expires_at = utcnow() - timedelta(minutes=1)
         db.commit()
         assert client.post("/api/invites/accept", json={
-            "token": inv2["token"], "name": "Late", "email": "late@gmail.com", "password": "Password1"}).status_code == 404
+            "token": inv2["token"], "name": "Late", "email": "late@gmail.com", "password": PW}).status_code == 404
 
     def test_pending_list_hides_token_and_used_invites(self, client, admin_h):
         a = self._invite(client, admin_h)
         b = self._invite(client, admin_h)
-        client.post("/api/invites/accept", json={"token": a["token"], "name": "A", "email": "a@gmail.com", "password": "Password1"})
+        client.post("/api/invites/accept", json={"token": a["token"], "name": "A", "email": "a@gmail.com", "password": PW})
         pending = client.get("/api/invites", headers=admin_h).json()
         assert [i["id"] for i in pending] == [b["id"]] and "token" not in pending[0]
 
@@ -128,7 +132,7 @@ class TestInvites:
     def test_existing_email_cannot_join(self, client, admin_h):
         inv = self._invite(client, admin_h)
         r = client.post("/api/invites/accept", json={
-            "token": inv["token"], "name": "X", "email": "boss@othershop.co.ke", "password": "Password1"})
+            "token": inv["token"], "name": "X", "email": "boss@othershop.co.ke", "password": PW})
         assert r.status_code == 409
 
     def test_garbage_token(self, client):
@@ -147,10 +151,10 @@ class TestInvites:
 
 class TestRateLimits:
     def test_login_brute_force_is_throttled(self, client):
-        codes = [client.post("/api/auth/login", json={"email": "admin@shop.co.ke", "password": f"guess{i}"}).status_code
+        codes = [client.post("/api/auth/login", json={"email": ADMIN["email"], "password": new_password()}).status_code
                  for i in range(22)]
         assert codes[:20] == [401] * 20 and codes[20:] == [429, 429]
-        r = client.post("/api/auth/login", json={"email": "admin@shop.co.ke", "password": "AdminPass123"})
+        r = client.post("/api/auth/login", json=ADMIN)
         assert r.status_code == 429 and "Retry-After" in r.headers and "Too many attempts" in r.json()["detail"]
 
     def test_signup_is_throttled(self, client):

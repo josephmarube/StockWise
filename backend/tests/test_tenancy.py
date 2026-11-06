@@ -7,7 +7,7 @@ did not exist.
 """
 import pytest
 
-from tests.conftest import OTHER_CATEGORY_ID
+from tests.conftest import OTHER_ADMIN, OTHER_CATEGORY_ID, STAFF, new_password
 
 
 def move(client, h, pid, type_="IN", qty=1, **extra):
@@ -113,9 +113,9 @@ class TestCannotChangeOtherBusiness:
 
     def test_edit_or_disable_other_business_user(self, client, other_h, admin_h):
         staff = [u for u in client.get("/api/users", headers=admin_h).json() if u["role"] == "STAFF"][0]
-        for body in ({"is_active": False}, {"role": "ADMIN"}, {"password": "takeover123"}):
+        for body in ({"is_active": False}, {"role": "ADMIN"}, {"password": new_password()}):
             assert client.patch(f"/api/users/{staff['id']}", headers=other_h, json=body).status_code == 404
-        assert client.post("/api/auth/login", json={"email": "staff@shop.co.ke", "password": "StaffPass123"}).status_code == 200
+        assert client.post("/api/auth/login", json=STAFF).status_code == 200
 
 
 class TestPerBusinessUniqueness:
@@ -143,7 +143,7 @@ class TestPerBusinessUniqueness:
 class TestWritesLandInOwnBusiness:
     def test_new_rows_belong_to_creator_business(self, client, other_h, admin_h):
         client.post("/api/suppliers", headers=other_h, json={"name": "Their Supplier"})
-        client.post("/api/users", headers=other_h, json={"name": "New", "email": "new@othershop.co.ke", "password": "Password1"})
+        client.post("/api/users", headers=other_h, json={"name": "New", "email": "new@othershop.co.ke", "password": new_password()})
         p = client.post("/api/products", headers=other_h, json={
             "sku": "T1", "name": "Theirs", "category_id": OTHER_CATEGORY_ID, "unit_price": 1,
             "reorder_threshold": 0, "initial_stock": 3}).json()
@@ -165,5 +165,5 @@ def test_deactivated_business_locks_out_its_users(client, other_h, admin_h, db):
     b.is_active = False
     db.commit()
     assert client.get("/api/products", headers=other_h).status_code == 401
-    assert client.post("/api/auth/login", json={"email": "boss@othershop.co.ke", "password": "OtherPass123"}).status_code == 401
+    assert client.post("/api/auth/login", json=OTHER_ADMIN).status_code == 401
     assert client.get("/api/products", headers=admin_h).status_code == 200

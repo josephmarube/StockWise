@@ -1,7 +1,7 @@
 """Row-lock behaviour (SELECT ... FOR UPDATE) and NFR3 concurrency.
 
 Requires a real MySQL database; skipped on SQLite:
-    TEST_DATABASE_URL=mysql+pymysql://stockwise:stockwise@127.0.0.1/stockwise_test pytest
+    TEST_DATABASE_URL=<mysql url of an empty test database> pytest   (see README)
 """
 from concurrent.futures import ThreadPoolExecutor
 

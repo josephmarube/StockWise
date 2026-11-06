@@ -1,7 +1,7 @@
 """Alembic migrations: fresh install, and upgrading a v1.0 database without losing data.
 
 Requires MySQL (skipped on SQLite):
-    TEST_DATABASE_URL=mysql+pymysql://stockwise:stockwise@127.0.0.1/stockwise_test pytest
+    TEST_DATABASE_URL=<mysql url of an empty test database> pytest   (see README)
 """
 import pytest
 from alembic import command

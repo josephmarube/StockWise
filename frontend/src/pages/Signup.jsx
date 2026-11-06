@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth'
 import AuthShell, { Brand } from '../components/AuthShell'
 import { Field } from '../components/ui'
 
+const TOO_SHORT = 'Use at least 8 characters.'
+
 // Creates a new business with the person signing up as its admin.
 export default function Signup() {
   const { user, signup } = useAuth()
@@ -21,7 +23,7 @@ export default function Signup() {
     if (f.business_name.trim().length < 2) errs.business_name = 'Enter your shop or business name.'
     if (!f.name.trim()) errs.name = 'Enter your name.'
     if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) errs.email = 'Enter a valid email address.'
-    if (f.password.length < 8) errs.password = 'Use at least 8 characters.'
+    if (f.password.length < 8) errs.password = TOO_SHORT
     setErrors(errs)
     if (Object.keys(errs).length) return
     setBusy(true)
