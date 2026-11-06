@@ -5,7 +5,7 @@ import { fmtAgo, fmtMoney, fmtNum } from '../lib/format'
 import { Empty, ErrorNote, Icon, Spinner, StockBar, StockBadge, TypeTag, sourceLabel } from '../components/ui'
 
 export default function Dashboard() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, business } = useAuth()
   // Poll so changes recorded by other users show up without a manual refresh.
   const { data, error, loading, reload } = useApi('/api/dashboard', null, { poll: 10000 })
   const first = user.name.split(' ')[0]
@@ -17,7 +17,9 @@ export default function Dashboard() {
           <h1>Hello, {first}</h1>
           {data && (
             <p className="lede">
-              {data.low_stock_count === 0
+              {data.active_products === 0
+                ? 'No products yet.'
+                : data.low_stock_count === 0
                 ? 'Everything is above its reorder level.'
                 : `${data.low_stock_count} ${data.low_stock_count === 1 ? 'product needs' : 'products need'} restocking${data.out_of_stock_count ? `, ${data.out_of_stock_count} already out` : ''}.`}
             </p>
@@ -31,6 +33,21 @@ export default function Dashboard() {
 
       <ErrorNote error={error} onRetry={reload} />
       {loading && !data && <Spinner />}
+
+      {data && data.active_products === 0 && data.recent_movements.length === 0 && (
+        <section className="panel onboard" aria-labelledby="start-h">
+          <h2 id="start-h">Get {business?.name || 'your shop'} started</h2>
+          {isAdmin ? (
+            <ol className="onboard-steps">
+              <li className="onboard-step"><strong>Add your products</strong><p>Name, price, reorder level and what's on the shelf today. Scan barcodes as you go.</p><Link className="btn btn-primary btn-sm" to="/products?new=1">Add a product</Link></li>
+              <li className="onboard-step"><strong>Invite your staff</strong><p>Send a link on WhatsApp. They set their own password and can record stock straight away.</p><Link className="btn btn-ghost btn-sm" to="/users?invite=1">Invite people</Link></li>
+              <li className="onboard-step"><strong>Record sales and deliveries</strong><p>Stock levels, low-stock alerts and reports update from every entry.</p><Link className="btn btn-ghost btn-sm" to="/record">Record stock</Link></li>
+            </ol>
+          ) : (
+            <p className="muted">Your admin hasn't added any products yet. Once they do, you can record sales and deliveries here.</p>
+          )}
+        </section>
+      )}
 
       {data && (
         <>

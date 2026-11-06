@@ -21,7 +21,7 @@ const TABS = [
 ]
 
 export default function Layout() {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, isAdmin, logout, business } = useAuth()
   const nav = useNavigate()
   const items = NAV.filter((n) => !n.admin || isAdmin)
 
@@ -33,6 +33,7 @@ export default function Layout() {
           <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="17" width="6" height="10" rx="1.5" fill="currentColor" opacity=".55"/><rect x="13" y="11" width="6" height="16" rx="1.5" fill="currentColor" opacity=".8"/><rect x="21" y="5" width="6" height="22" rx="1.5" fill="#D99A00"/></svg>
           <span>StockWise</span>
         </div>
+        <div className="side-business" title="Your business">{business?.name}</div>
         <nav className="side-nav" aria-label="Main">
           {items.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} className="side-link">
@@ -55,6 +56,7 @@ export default function Layout() {
         <div className="brand">
           <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="17" width="6" height="10" rx="1.5" fill="currentColor" opacity=".55"/><rect x="13" y="11" width="6" height="16" rx="1.5" fill="currentColor" opacity=".8"/><rect x="21" y="5" width="6" height="22" rx="1.5" fill="#D99A00"/></svg>
           <span>StockWise</span>
+          <span className="top-business">{business?.name}</span>
         </div>
         <button className="icon-btn" onClick={() => { logout(); nav('/login') }} aria-label="Log out"><Icon name="logout" /></button>
       </header>
