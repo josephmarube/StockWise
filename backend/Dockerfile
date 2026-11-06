@@ -5,6 +5,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY scripts ./scripts
+COPY alembic.ini ./
+COPY migrations ./migrations
 RUN useradd -r -u 1001 app && chown -R app /app
 USER app
 EXPOSE 8000
