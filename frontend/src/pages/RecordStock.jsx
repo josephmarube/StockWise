@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -18,6 +18,19 @@ export default function RecordStock() {
   const [busy, setBusy] = useState(false)
   const [shortfall, setShortfall] = useState(null) // 409 details
   const [last, setLast] = useState(null)
+  const [source, setSource] = useState('MANUAL') // how the product was chosen (FR7.2)
+  const pickerRef = useRef(null)
+  const qtyRef = useRef(null)
+
+  const focusLater = (ref, select = false) => setTimeout(() => {
+    ref.current?.focus()
+    if (select) ref.current?.select()
+  }, 0)
+
+  function choose(p, src) {
+    setProduct(p); setSource(src); setErrors({})
+    focusLater(qtyRef, true)
+  }
 
   useEffect(() => {
     const pid = params.get('product')
@@ -40,11 +53,17 @@ export default function RecordStock() {
     setBusy(true)
     try {
       const res = await api.post('/api/stock/movements', {
-        product_id: product.id, type, quantity: n, note: note.trim() || null, override,
+        product_id: product.id, type, quantity: n, note: note.trim() || null, override, source,
       })
       setLast({ ...res, product })
-      setProduct({ ...product, current_stock: res.current_stock })
       setQty('1'); setNote(''); setShortfall(null)
+      if (source === 'MANUAL') {
+        setProduct({ ...product, current_stock: res.current_stock })
+      } else {
+        // Scanning: clear and get ready for the next item.
+        setProduct(null); setSource('MANUAL')
+        focusLater(pickerRef)
+      }
       toast(`${type === 'IN' ? 'Added' : 'Removed'} ${fmtNum(n)} × ${product.name}. ${fmtNum(res.current_stock)} now in stock.`)
       if (res.low_stock) toast(`${product.name} is at or below its reorder level.`, 'warn')
     } catch (err) {
@@ -80,13 +99,14 @@ export default function RecordStock() {
         </div>
 
         <Field label="Product" id="product" error={errors.product}>
-          <ProductPicker value={product} onChange={(p) => { setProduct(p); setErrors({}) }} error={errors.product} autoFocus={!params.get('product')} />
+          <ProductPicker value={product} onChange={choose} error={errors.product} autoFocus={!params.get('product')}
+            inputRef={pickerRef} isAdmin={isAdmin} />
         </Field>
 
         <Field label="Quantity" id="qty" error={errors.qty}>
           <div className="stepper">
             <button type="button" className="step-btn" onClick={() => step(-1)} aria-label="Decrease quantity"><Icon name="minus" size={26} /></button>
-            <input id="qty" inputMode="numeric" pattern="[0-9]*" value={qty} aria-invalid={!!errors.qty}
+            <input id="qty" ref={qtyRef} inputMode="numeric" pattern="[0-9]*" value={qty} aria-invalid={!!errors.qty}
               onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))} onFocus={(e) => e.target.select()} />
             <button type="button" className="step-btn" onClick={() => step(1)} aria-label="Increase quantity"><Icon name="plus" size={26} /></button>
           </div>
