@@ -23,18 +23,30 @@ export function AuthProvider({ children }) {
       .finally(() => setReady(true))
   }, [logout])
 
-  const login = useCallback(async (email, password) => {
-    const res = await api.post('/api/auth/login', { email, password })
+  // Login, signup and accepting an invite all return a token and the user (with their business).
+  const startSession = useCallback((res) => {
     tokenStore.set(res.access_token)
     setNotice('')
     setUser(res.user)
     return res.user
   }, [])
 
+  const login = useCallback(async (email, password) =>
+    startSession(await api.post('/api/auth/login', { email, password })), [startSession])
+
+  const signup = useCallback(async (body) =>
+    startSession(await api.post('/api/auth/signup', body)), [startSession])
+
+  const acceptInvite = useCallback(async (body) =>
+    startSession(await api.post('/api/invites/accept', body)), [startSession])
+
+  const setBusiness = useCallback((business) => setUser((u) => (u ? { ...u, business } : u)), [])
+
   const value = useMemo(() => ({
-    user, ready, login, logout, notice,
+    user, ready, login, signup, acceptInvite, logout, notice, setBusiness,
     isAdmin: user?.role === 'ADMIN',
-  }), [user, ready, login, logout, notice])
+    business: user?.business,
+  }), [user, ready, login, signup, acceptInvite, logout, notice, setBusiness])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

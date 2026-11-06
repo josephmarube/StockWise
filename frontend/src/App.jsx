@@ -3,6 +3,8 @@ import { useAuth } from './lib/auth'
 import Layout from './components/Layout'
 import { Spinner } from './components/ui'
 import Login from './pages/Login'
+import Signup from './pages/Signup'
+import Join from './pages/Join'
 import Dashboard from './pages/Dashboard'
 import RecordStock from './pages/RecordStock'
 import Products from './pages/Products'
@@ -25,6 +27,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/join/:token" element={<Join />} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Dashboard />} />
         <Route path="record" element={<RecordStock />} />
