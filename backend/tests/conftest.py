@@ -76,6 +76,8 @@ def client(engine, db, monkeypatch):
 
     monkeypatch.setattr(main_mod, "engine", engine)
     monkeypatch.setattr(main_mod, "SessionLocal", Session)
+    # Tables come from create_all above; migrations are tested in test_migrations.py.
+    monkeypatch.setattr(main_mod, "init_db", lambda: None)
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

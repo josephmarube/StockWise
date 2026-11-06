@@ -10,7 +10,8 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
+from app.migrate import reset_database, upgrade_to_head
 from app.models import Category, MovementType, Product, Role, StockMovement, Supplier, User, utcnow
 from app.security import hash_password
 
@@ -52,8 +53,9 @@ END_LEVEL = {"BEV-002": 0, "DAI-002": 7, "HOU-003": 4, "GRO-003": 9}
 
 def main(reset: bool) -> None:
     if reset:
-        Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+        reset_database()
+    else:
+        upgrade_to_head()
     rng = random.Random(42)
 
     with SessionLocal() as db:

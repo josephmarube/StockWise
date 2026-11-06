@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
 
 from .config import get_settings
-from .database import Base, SessionLocal, engine
+from .database import SessionLocal, engine
+from .migrate import upgrade_to_head
 from .models import Role, User
 from .routers import auth, categories, dashboard, products, reports, stock, suppliers, users
 from .security import hash_password
@@ -18,7 +19,7 @@ log = logging.getLogger("stockwise")
 
 
 def init_db() -> None:
-    Base.metadata.create_all(bind=engine)
+    upgrade_to_head()
     s = get_settings()
     if not (s.bootstrap_admin_email and s.bootstrap_admin_password):
         return
