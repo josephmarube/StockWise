@@ -38,3 +38,12 @@ def reset_database() -> None:
     with engine.begin() as conn:
         conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
     upgrade_to_head()
+
+
+if __name__ == "__main__":
+    # `python -m app.migrate`: run once before starting the API workers.
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+    upgrade_to_head()
+    print("Database is up to date.")

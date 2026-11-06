@@ -1,11 +1,13 @@
 """StockWise API entry point."""
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select, text
 
 from .config import get_settings
@@ -19,8 +21,9 @@ log = logging.getLogger("stockwise")
 
 
 def init_db() -> None:
-    upgrade_to_head()
     s = get_settings()
+    if s.migrate_on_startup:
+        upgrade_to_head()
     if not (s.bootstrap_admin_email and s.bootstrap_admin_password):
         return
     with SessionLocal() as db:
@@ -87,3 +90,34 @@ def health():
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+# ---------- Production: serve the built React app from the same origin ----------
+# In development Vite serves the frontend; in the Docker image STATIC_DIR points at its build.
+_static = get_settings().static_dir
+STATIC_DIR = Path(_static).resolve() if _static else None
+
+if STATIC_DIR and (STATIC_DIR / "index.html").is_file():
+    INDEX = STATIC_DIR / "index.html"
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.middleware("http")
+    async def static_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        if request.url.path.startswith("/assets/"):
+            # File names contain a content hash, so they never change.
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        if path.startswith("api/") or path == "api":
+            raise HTTPException(404, "Not found")
+        file = (STATIC_DIR / path).resolve()
+        if path and file.is_file() and STATIC_DIR in file.parents:
+            return FileResponse(file)
+        # Client-side routes (/products/3, /record, ...) all load the app shell.
+        return FileResponse(INDEX, headers={"Cache-Control": "no-cache"})
