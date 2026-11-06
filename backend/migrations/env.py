@@ -1,10 +1,9 @@
-"""Alembic environment. The database URL comes from app settings (DATABASE_URL), not alembic.ini."""
+"""Alembic environment. Uses the app's own engine, so DATABASE_URL and TLS settings apply."""
 from alembic import context
-from sqlalchemy import engine_from_config, pool
 
 from app import models  # noqa: F401  (registers tables on Base.metadata)
 from app.config import get_settings
-from app.database import Base
+from app.database import Base, engine
 
 config = context.config
 if not config.get_main_option("sqlalchemy.url"):
@@ -25,17 +24,12 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = config.attributes.get("connection")
-    if connectable is None:
-        connectable = engine_from_config(
-            config.get_section(config.config_ini_section, {}),
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-        )
-        with connectable.connect() as connection:
+    connection = config.attributes.get("connection")
+    if connection is None:
+        with engine.connect() as connection:
             _run(connection)
     else:
-        _run(connectable)
+        _run(connection)
 
 
 def _run(connection) -> None:
