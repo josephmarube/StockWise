@@ -12,7 +12,18 @@ from sqlalchemy import func, select
 
 from app.database import SessionLocal
 from app.migrate import reset_database, upgrade_to_head
-from app.models import Category, MovementType, Product, Role, StockMovement, Supplier, User, utcnow
+from app.models import (
+    Category,
+    MovementSource,
+    MovementType,
+    Product,
+    ProductBarcode,
+    Role,
+    StockMovement,
+    Supplier,
+    User,
+    utcnow,
+)
 from app.security import hash_password
 
 USERS = [
@@ -51,6 +62,13 @@ PRODUCTS = [
 END_LEVEL = {"BEV-002": 0, "DAI-002": 7, "HOU-003": 4, "GRO-003": 9}
 
 
+def ean13(seed: int) -> str:
+    """A valid EAN-13 with Kenya's GS1 prefix (616). Demo codes, not real products."""
+    body = f"616{seed:09d}"
+    total = sum(int(d) * (3 if i % 2 else 1) for i, d in enumerate(body))
+    return body + str((10 - total % 10) % 10)
+
+
 def main(reset: bool) -> None:
     if reset:
         reset_database()
@@ -72,10 +90,11 @@ def main(reset: bool) -> None:
 
         now = utcnow()
         start = now - timedelta(days=21)
-        for sku, name, cat, price, thr, opening, sidx in PRODUCTS:
+        for n, (sku, name, cat, price, thr, opening, sidx) in enumerate(PRODUCTS, start=1):
             p = Product(
                 sku=sku, name=name, category=cats[cat], unit_price=Decimal(price),
                 reorder_threshold=thr, current_stock=0, suppliers=[sups[i] for i in sidx],
+                barcodes=[ProductBarcode(code=ean13(1000 + n))],
             )
             db.add(p)
             db.flush()
@@ -97,7 +116,8 @@ def main(reset: bool) -> None:
                     typ, note = MovementType.OUT, rng.choice(["Sale", "Sale", "Sale", None, "Damaged"])
                 p.apply_movement(typ, qty)
                 db.add(StockMovement(product_id=p.id, user_id=rng.choice(users).id, type=typ, quantity=qty,
-                                     stock_after=p.current_stock, note=note, created_at=t))
+                                     stock_after=p.current_stock, note=note, created_at=t,
+                                     source=rng.choice([MovementSource.MANUAL] * 3 + [MovementSource.SCANNER])))
             target = END_LEVEL.get(sku)
             if target is not None and p.current_stock != target:
                 typ = MovementType.OUT if p.current_stock > target else MovementType.IN
@@ -108,6 +128,7 @@ def main(reset: bool) -> None:
         db.commit()
 
     print("Seeded. Log in with:")
+    print("  (each product has a demo barcode; see Products > product page)")
     for n, e, pw, r in USERS:
         print(f"  {r.value:5}  {e}  /  {pw}")
 

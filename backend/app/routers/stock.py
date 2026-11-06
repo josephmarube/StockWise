@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, DbSession
-from ..models import MovementType, Product, Role, StockMovement
+from ..models import MovementSource, MovementType, Product, Role, StockMovement
 from ..schemas import MovementCreate, MovementOut, MovementPage, MovementResult
 from ..services.stock_service import InsufficientStock, StockError, record_movement
 from ..timeutil import local_date_range_to_utc
@@ -32,6 +32,7 @@ def create_movement(body: MovementCreate, db: DbSession, user: CurrentUser):
             quantity=body.quantity,
             note=body.note,
             override=body.override,
+            source=body.source,
         )
     except InsufficientStock as e:
         return JSONResponse(
@@ -65,6 +66,7 @@ def list_movements(
     user: CurrentUser,
     product_id: int | None = None,
     type: MovementType | None = None,
+    source: MovementSource | None = None,
     start: date | None = None,
     end: date | None = None,
     limit: int = Query(default=50, ge=1, le=500),
@@ -80,6 +82,8 @@ def list_movements(
         stmt = stmt.where(StockMovement.product_id == product_id)
     if type:
         stmt = stmt.where(StockMovement.type == type)
+    if source:
+        stmt = stmt.where(StockMovement.source == source)
     if start or end:
         lo, hi = local_date_range_to_utc(start, end)
         if lo:

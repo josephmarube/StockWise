@@ -1,11 +1,12 @@
 """Pydantic request/response models. Server-side validation for NFR8."""
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, PlainSerializer, field_validator
 
-from .models import MovementType, Role
+from .models import MovementSource, MovementType, Role
 
 
 def _as_utc(d: datetime) -> str:
@@ -142,6 +143,26 @@ class SupplierDeleteResult(BaseModel):
 
 
 # ---------- Products ----------
+BARCODE_RE = re.compile(r"^[!-~]{3,64}$")  # printable ASCII, no spaces
+
+
+def _clean_barcodes(v):
+    if v is None:
+        return v
+    out: list[str] = []
+    for raw in v:
+        code = str(raw).strip()
+        if not code:
+            continue
+        if not BARCODE_RE.match(code):
+            raise ValueError(f"Barcode '{code}' must be 3-64 characters with no spaces")
+        if code not in out:
+            out.append(code)
+    if len(out) > 10:
+        raise ValueError("A product can have at most 10 barcodes")
+    return out
+
+
 class ProductCreate(BaseModel):
     sku: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._\-]+$")
     name: str = Field(min_length=1, max_length=200)
@@ -150,6 +171,9 @@ class ProductCreate(BaseModel):
     reorder_threshold: int = Field(ge=0, le=1_000_000)
     initial_stock: int = Field(default=0, ge=0, le=1_000_000)
     supplier_ids: list[int] = Field(default_factory=list)
+    barcodes: list[str] = Field(default_factory=list)
+
+    _b = field_validator("barcodes")(_clean_barcodes)
 
     @field_validator("sku", "name", mode="before")
     @classmethod
@@ -168,6 +192,9 @@ class ProductUpdate(BaseModel):
     category_id: int | None = Field(default=None, gt=0)
     unit_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     reorder_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    barcodes: list[str] | None = None
+
+    _b = field_validator("barcodes")(_clean_barcodes)
 
     @field_validator("sku", mode="before")
     @classmethod
@@ -189,6 +216,7 @@ class ProductOut(ORM):
     current_stock: int
     archived: bool
     low_stock: bool
+    barcodes: list[str] = Field(default_factory=list, validation_alias="barcode_codes")
     suppliers: list[SupplierBrief] = []
     created_at: UTCDateTime
     updated_at: UTCDateTime
@@ -206,6 +234,7 @@ class MovementCreate(BaseModel):
     quantity: int = Field(gt=0, le=1_000_000)
     note: str | None = Field(default=None, max_length=500)
     override: bool = False
+    source: MovementSource = MovementSource.MANUAL
 
 
 class UserBrief(ORM):
@@ -225,6 +254,7 @@ class MovementOut(ORM):
     product: ProductBrief
     user: UserBrief
     type: MovementType
+    source: MovementSource
     quantity: int
     stock_after: int
     override: bool

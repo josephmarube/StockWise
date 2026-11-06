@@ -26,7 +26,11 @@ def summary(db: DbSession, _: CurrentUser):
     low = (
         db.execute(
             select(Product)
-            .options(selectinload(Product.category), selectinload(Product.suppliers))
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.suppliers),
+                selectinload(Product.barcodes),
+            )
             .where(active, Product.current_stock <= Product.reorder_threshold)
             .order_by((Product.current_stock - Product.reorder_threshold).asc(), Product.name)
         )

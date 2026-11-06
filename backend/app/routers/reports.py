@@ -10,7 +10,7 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from ..deps import AdminUser, DbSession
-from ..models import Category, MovementType, Product, StockMovement
+from ..models import Category, MovementSource, MovementType, Product, StockMovement
 from ..schemas import MovementOut, MovementPage, StockReport, StockReportRow
 from ..timeutil import local_date_range_to_utc, to_local, today_local
 
@@ -76,7 +76,7 @@ def _build_rows(db, lo: datetime, hi: datetime, include_archived: bool) -> list[
     return rows
 
 
-def _movements_stmt(lo, hi, product_id=None, user_id=None, type_=None, q=None):
+def _movements_stmt(lo, hi, product_id=None, user_id=None, type_=None, q=None, source=None):
     stmt = (
         select(StockMovement)
         .options(selectinload(StockMovement.product), selectinload(StockMovement.user))
@@ -88,6 +88,8 @@ def _movements_stmt(lo, hi, product_id=None, user_id=None, type_=None, q=None):
         stmt = stmt.where(StockMovement.user_id == user_id)
     if type_:
         stmt = stmt.where(StockMovement.type == type_)
+    if source:
+        stmt = stmt.where(StockMovement.source == source)
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.join(Product, Product.id == StockMovement.product_id).where(
@@ -137,6 +139,7 @@ def audit_log(
     user_id: int | None = None,
     product_id: int | None = None,
     type: MovementType | None = None,
+    source: MovementSource | None = None,
     q: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
@@ -144,7 +147,7 @@ def audit_log(
     """FR7.1 / NFR5: who did what stock action, and when."""
     start, end = _range(start, end)
     lo, hi = local_date_range_to_utc(start, end)
-    stmt = _movements_stmt(lo, hi, product_id, user_id, type, q)
+    stmt = _movements_stmt(lo, hi, product_id, user_id, type, q, source)
     total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery()))
     items = db.execute(stmt.limit(limit).offset(offset)).scalars().all()
     return MovementPage(items=items, total=total)
@@ -227,20 +230,21 @@ def export_movements_csv(
     user_id: int | None = None,
     product_id: int | None = None,
     type: MovementType | None = None,
+    source: MovementSource | None = None,
 ):
     """Also serves as the audit-log export (FR7.1)."""
     start, end = _range(start, end)
     lo, hi = local_date_range_to_utc(start, end)
-    ms = db.execute(_movements_stmt(lo, hi, product_id, user_id, type)).scalars().all()
+    ms = db.execute(_movements_stmt(lo, hi, product_id, user_id, type, source=source)).scalars().all()
     return _csv_response(
         [
-            "Timestamp (local)", "Movement ID", "SKU", "Product", "Type", "Quantity",
+            "Timestamp (local)", "Movement ID", "SKU", "Product", "Type", "Source", "Quantity",
             "Stock after", "User", "Role", "Override", "Note",
         ],
         (
             [
                 _fmt_local(m.created_at), m.id, m.product.sku, m.product.name, m.type.value,
-                m.quantity, m.stock_after, m.user.name, m.user.role.value,
+                m.source.value.title(), m.quantity, m.stock_after, m.user.name, m.user.role.value,
                 "YES" if m.override else "NO", m.note or "",
             ]
             for m in ms

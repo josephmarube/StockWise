@@ -1,4 +1,4 @@
-"""FR1 Product Management, FR3.2 product-supplier links."""
+"""FR1 Product Management, FR1.4 barcodes, FR3.2 product-supplier links."""
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from ..deps import AdminUser, CurrentUser, DbSession
-from ..models import Category, MovementType, Product, Role, StockMovement, Supplier
+from ..models import Category, MovementType, Product, ProductBarcode, Role, StockMovement, Supplier
 from ..schemas import (
     ProductCreate,
     ProductOut,
@@ -27,11 +27,16 @@ SORTS = {
 }
 
 
+LOAD_OPTS = (
+    selectinload(Product.category),
+    selectinload(Product.suppliers),
+    selectinload(Product.barcodes),
+)
+
+
 def _load(db, product_id: int) -> Product:
     p = db.execute(
-        select(Product)
-        .options(selectinload(Product.category), selectinload(Product.suppliers))
-        .where(Product.id == product_id)
+        select(Product).options(*LOAD_OPTS).where(Product.id == product_id)
     ).scalar_one_or_none()
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not found")
@@ -59,6 +64,29 @@ def _check_category(db, category_id: int) -> None:
         raise HTTPException(422, "Category does not exist")
 
 
+def _check_barcodes_free(db, codes: list[str], exclude_product_id: int | None = None) -> None:
+    """FR1.4: a barcode identifies exactly one product."""
+    if not codes:
+        return
+    q = (
+        select(ProductBarcode.code, Product.name)
+        .join(Product, Product.id == ProductBarcode.product_id)
+        .where(ProductBarcode.code.in_(codes))
+    )
+    if exclude_product_id:
+        q = q.where(ProductBarcode.product_id != exclude_product_id)
+    clash = db.execute(q).first()
+    if clash:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Barcode {clash[0]} is already used by {clash[1]}"
+        )
+
+
+def _set_barcodes(product: Product, codes: list[str]) -> None:
+    keep = {b.code: b for b in product.barcodes}
+    product.barcodes = [keep.get(c) or ProductBarcode(code=c) for c in codes]
+
+
 def _sku_taken(db, sku: str, exclude_id: int | None = None) -> bool:
     q = select(Product.id).where(func.upper(Product.sku) == sku.upper())
     if exclude_id:
@@ -81,7 +109,7 @@ def list_products(
     offset: int = Query(default=0, ge=0),
 ):
     """FR1.3: searchable, filterable catalogue with current stock level."""
-    stmt = select(Product).options(selectinload(Product.category), selectinload(Product.suppliers))
+    stmt = select(Product).options(*LOAD_OPTS)
 
     # Staff only ever see active products.
     if user.role != Role.ADMIN:
@@ -92,8 +120,15 @@ def list_products(
         stmt = stmt.where(Product.archived.is_(False))
 
     if q:
-        like = f"%{q.strip()}%"
-        stmt = stmt.where(or_(Product.name.ilike(like), Product.sku.ilike(like)))
+        term = q.strip()
+        like = f"%{term}%"
+        stmt = stmt.where(
+            or_(
+                Product.name.ilike(like),
+                Product.sku.ilike(like),
+                Product.barcodes.any(ProductBarcode.code == term),
+            )
+        )
     if category_id:
         stmt = stmt.where(Product.category_id == category_id)
     if low_stock:
@@ -104,6 +139,20 @@ def list_products(
     stmt = stmt.order_by(col.desc() if order == "desc" else col.asc(), Product.id)
     items = db.execute(stmt.limit(limit).offset(offset)).scalars().all()
     return ProductPage(items=items, total=total)
+
+
+@router.get("/by-barcode/{code}", response_model=ProductOut)
+def get_by_barcode(code: str, db: DbSession, user: CurrentUser):
+    """FR2.5: resolve a scanned barcode to its product."""
+    p = db.execute(
+        select(Product)
+        .options(*LOAD_OPTS)
+        .join(ProductBarcode, ProductBarcode.product_id == Product.id)
+        .where(ProductBarcode.code == code.strip())
+    ).scalar_one_or_none()
+    if p is None or (p.archived and user.role != Role.ADMIN):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No product has barcode {code.strip()}")
+    return p
 
 
 @router.get("/{product_id}", response_model=ProductOut)
@@ -120,6 +169,7 @@ def create_product(body: ProductCreate, db: DbSession, admin: AdminUser):
     if _sku_taken(db, body.sku):
         raise HTTPException(status.HTTP_409_CONFLICT, f"SKU '{body.sku}' already exists")
     _check_category(db, body.category_id)
+    _check_barcodes_free(db, body.barcodes)
     suppliers = _resolve_suppliers(db, body.supplier_ids)
 
     product = Product(
@@ -130,6 +180,7 @@ def create_product(body: ProductCreate, db: DbSession, admin: AdminUser):
         reorder_threshold=body.reorder_threshold,
         current_stock=0,
         suppliers=suppliers,
+        barcodes=[ProductBarcode(code=c) for c in body.barcodes],
     )
     db.add(product)
     db.commit()
@@ -156,6 +207,10 @@ def update_product(product_id: int, body: ProductUpdate, db: DbSession, _: Admin
         raise HTTPException(status.HTTP_409_CONFLICT, f"SKU '{data['sku']}' already exists")
     if data.get("category_id") is not None:
         _check_category(db, data["category_id"])
+    if "barcodes" in data:
+        codes = data.pop("barcodes") or []
+        _check_barcodes_free(db, codes, exclude_product_id=p.id)
+        _set_barcodes(p, codes)
     for field, value in data.items():
         if value is None:
             raise HTTPException(422, f"{field} cannot be empty")

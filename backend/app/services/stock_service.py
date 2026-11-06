@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from ..models import MovementType, Product, Role, StockMovement, User
+from ..models import MovementSource, MovementType, Product, Role, StockMovement, User
 
 
 class StockError(Exception):
@@ -62,6 +62,7 @@ def record_movement(
     note: str | None = None,
     override: bool = False,
     allow_archived: bool = False,
+    source: MovementSource = MovementSource.MANUAL,
 ) -> MovementOutcome:
     if quantity <= 0:
         raise StockError("Quantity must be greater than zero")
@@ -94,6 +95,7 @@ def record_movement(
             product_id=product.id,
             user_id=user.id,
             type=type_,
+            source=source,
             quantity=quantity,
             stock_after=product.current_stock,
             override=used_override,

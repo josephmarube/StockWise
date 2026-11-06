@@ -36,6 +36,17 @@ class MovementType(str, enum.Enum):
     OUT = "OUT"
 
 
+class MovementSource(str, enum.Enum):
+    """How a movement entered the system. Every channel feeds the same StockService."""
+
+    MANUAL = "MANUAL"    # typed into a form
+    SCANNER = "SCANNER"  # USB/Bluetooth barcode scanner
+    CAMERA = "CAMERA"    # phone/tablet camera scan in the browser
+    IMPORT = "IMPORT"    # spreadsheet import (reserved, Phase 2)
+    TILL = "TILL"        # point-of-sale integration (reserved, Phase 2)
+    API = "API"          # other systems (reserved)
+
+
 # Association table resolving Product <-> Supplier many-to-many (ProductSupplier).
 product_suppliers = Table(
     "product_suppliers",
@@ -90,6 +101,13 @@ class Product(Base):
         secondary=product_suppliers, back_populates="products"
     )
     movements: Mapped[list[StockMovement]] = relationship(back_populates="product")
+    barcodes: Mapped[list[ProductBarcode]] = relationship(
+        back_populates="product", cascade="all, delete-orphan", order_by="ProductBarcode.id"
+    )
+
+    @property
+    def barcode_codes(self) -> list[str]:
+        return [b.code for b in self.barcodes]
 
     def is_low_stock(self) -> bool:
         """FR5.1: low when current stock <= reorder threshold."""
@@ -101,6 +119,20 @@ class Product(Base):
 
     def apply_movement(self, type_: MovementType, qty: int) -> None:
         self.current_stock += qty if type_ == MovementType.IN else -qty
+
+
+class ProductBarcode(Base):
+    """A product can carry several barcodes (e.g. single unit and carton)."""
+
+    __tablename__ = "product_barcodes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), index=True
+    )
+    code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+
+    product: Mapped[Product] = relationship(back_populates="barcodes")
 
 
 class Supplier(Base):
@@ -139,6 +171,12 @@ class StockMovement(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
     type: Mapped[MovementType] = mapped_column(Enum(MovementType, name="movement_type"))
+    source: Mapped[MovementSource] = mapped_column(
+        Enum(MovementSource, name="movement_source"),
+        default=MovementSource.MANUAL,
+        server_default=MovementSource.MANUAL.value,
+        index=True,
+    )
     quantity: Mapped[int] = mapped_column(Integer)
     stock_after: Mapped[int] = mapped_column(Integer)
     override: Mapped[bool] = mapped_column(Boolean, default=False)
