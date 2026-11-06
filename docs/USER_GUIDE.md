@@ -35,6 +35,16 @@ The dashboard updates by itself every few seconds, so you will see what colleagu
 
 A message confirms the new stock level. The form stays open, so you can record the next item straight away.
 
+## Recording stock with a barcode scanner or camera
+
+If a product has a barcode, you can scan it instead of searching:
+
+- **USB or Bluetooth scanner:** click the product search box, then scan. The product is selected and the cursor jumps to the quantity. Type the quantity and press Enter. The box clears, ready for the next item.
+- **Phone, tablet or laptop camera:** tap **Scan** next to the search box and point the camera at the barcode. It is read automatically. The first time, your browser asks for permission to use the camera; tap **Allow**.
+- **Barcode not recognised:** StockWise tells you no product has that barcode. Staff should ask an admin to add it. Admins can tap **Add it as a new product**, and the barcode is filled in for them.
+
+Scanned and typed entries follow exactly the same rules. The audit log shows which method was used for each one.
+
 **"Not enough stock".** If you try to remove more than the system shows, StockWise stops you and nothing is saved. If the shelf really has more than the system says, ask an admin. An admin can choose **Record anyway**, and the override is marked in the audit log.
 
 ## Products
@@ -51,6 +61,7 @@ Tap a product to see its stock level, suppliers and full history.
 **Admins only:**
 
 - **Add product:** enter a name, a unique SKU, category, price, reorder level and the opening stock you count today. The opening stock is recorded as a stock-in.
+- **Barcodes:** in the product form, scan or type the barcode printed on the packaging and press Enter, or tap the camera button. A product can have more than one, for example one for a single item and one for the carton.
 - **Edit details:** change name, SKU, category, price or reorder level. To change the stock quantity itself, record a stock movement.
 - **Archive:** hides a product you no longer sell. Its history is kept, and you can **Restore** it later. Products that have never had stock recorded can be deleted instead.
 - **Suppliers → Change:** choose which suppliers provide this product.
@@ -70,7 +81,7 @@ Add the businesses you buy from, with contact person, phone, email and address.
 2. Read the table. For each product it shows units in and out during that period, plus current stock and value.
 3. To work with the data in Excel or Google Sheets, use **Export stock CSV** or **Export movements CSV**.
 
-**Audit log.** Every stock change, showing who made it, when, how many units, the stock afterwards, and whether an override was used. Filter by user, product or in/out, and export to CSV.
+**Audit log.** Every stock change, showing who made it, when, how it was entered (typed, scanner or camera), how many units, the stock afterwards, and whether an override was used. Filter by user, product, in/out or method, and export to CSV.
 
 ## Users (admins)
 

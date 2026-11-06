@@ -8,10 +8,12 @@ Maps each SRS requirement to where it is implemented and how it is verified. Tes
 |---|---|---|
 | FR1.1 Add product | `routers/products.py::create_product`, `ProductForm.jsx` | `test_fr1_1_create_product`, `test_fr1_1_duplicate_sku_rejected`, `test_fr1_1_invalid_fields_rejected` (8 cases), `test_fr1_1_initial_stock_is_audited`; E2E duplicate-SKU message |
 | FR1.2 Edit / archive | `update_product`, `archive_product`, `restore_product`, `delete_product` | `test_fr1_2_edit_product`, `test_fr1_2_stock_not_editable_directly`, `test_fr1_2_product_with_history_cannot_be_deleted`, `test_fr1_2_product_without_history_can_be_deleted`, `test_fr1_2_archive_keeps_history_and_hides_from_staff` |
+| FR1.4 Product barcodes *(new; add to SRS)* | `ProductBarcode` model, `_check_barcodes_free`, `ProductForm.jsx` | `TestFR1_4Barcodes` (create, uniqueness, validation, edit, search, staff blocked); E2E duplicate-barcode message |
 | FR1.3 View catalogue | `list_products` (search, category, low-stock, sort, paging), `Products.jsx` | `test_fr1_3_search_and_filter` |
 | FR2.1 Stock in | `services/stock_service.py::record_movement`, `RecordStock.jsx` | `test_fr2_1_stock_in_increases` |
 | FR2.2 Stock out + negative rule | `record_movement` (row lock, admin-only override, 409) | `test_fr2_2_stock_out_decreases`, `test_fr2_2_negative_stock_rejected_for_staff_even_with_override`, `test_fr2_2_admin_without_override_rejected`, `test_fr2_2_admin_override_allows_negative_and_is_flagged`, `test_simultaneous_stock_outs_never_oversell` (MySQL); E2E admin override dialog, staff rejection |
 | FR2.3 Stock levels within 2 s | Movement response returns new level; dashboard re-fetches on navigation and polls every 10 s for other users' changes | `test_fr2_3_stock_level_visible_immediately`; load test p95 < 120 ms |
+| FR2.5 Scan to record *(new; add to SRS)* | `GET /api/products/by-barcode/{code}`, `ProductPicker.jsx` (USB scanner), `BarcodeScanner.jsx` (camera) | `TestFR2_5ScanLookup`; E2E with a simulated camera reading an EAN-13 (about 0.2 s), USB-scanner keystrokes, unknown-barcode flow for admin and staff |
 | FR2.4 Movement history | `routers/stock.py::list_movements`, `ProductDetail.jsx` | `test_fr2_4_history_is_chronological` |
 | FR3.1 Supplier CRUD / deactivate | `routers/suppliers.py` | `test_fr3_1_create_and_edit`, `test_fr3_1_invalid_email_rejected`, `test_fr3_1_unlinked_supplier_deleted`, `test_fr3_1_linked_supplier_deactivated` |
 | FR3.2 Link product to supplier | `set_product_suppliers` | `test_fr3_2_link_multiple_suppliers`, `test_fr3_2_cannot_link_inactive_supplier` |
@@ -20,6 +22,7 @@ Maps each SRS requirement to where it is implemented and how it is verified. Tes
 | FR5.1 Threshold alerting | `Product.is_low_stock`, `routers/dashboard.py` | `test_fr5_1_flag_at_threshold`, `test_fr5_1_raising_threshold_flags_product` |
 | FR6.1 Stock report | `routers/reports.py::stock_report` | `test_fr6_1_stock_report`, `test_fr6_1_date_range_excludes_outside`, `test_fr6_1_invalid_range` |
 | FR6.2 CSV export | `export_stock_csv`, `export_movements_csv` | `test_fr6_2_csv_export`, `test_fr6_2_csv_formula_injection_neutralised`; E2E download |
+| FR7.2 Movement source *(new; add to SRS)* | `StockMovement.source`, filters in history, audit log and CSV | `TestFR7_2MovementSource` (default, recorded, invalid rejected, same rules for every source, filters + CSV) |
 | FR7.1 Audit log | `StockMovement` (user, timestamp, override flag), `audit_log` | `test_fr7_1_audit_records_user_and_timestamp`, `test_fr7_1_audit_filter_and_csv` |
 
 ## Non-functional requirements
@@ -33,6 +36,7 @@ Maps each SRS requirement to where it is implemented and how it is verified. Tes
 | NFR5 Auditability | Same as FR7.1 | `test_nfr5_every_movement_has_user_and_time` |
 | NFR6 Chrome & Edge | Standard React/CSS, no browser-specific APIs | E2E on Chromium (the engine behind both Chrome and Edge) |
 | NFR8 Client + server validation | Pydantic schemas + readable 422 handler; form checks in every React form | `test_fr1_1_invalid_fields_rejected`, `test_nfr8_invalid_quantity_rejected`, `test_validation_errors_are_readable`; E2E client errors |
+| Maintainability: schema changes | Alembic migrations; v1.0 databases detected and upgraded in place | `test_migrations.py` (MySQL): fresh install matches models, v1.0 database upgrades with data kept, idempotent, reset |
 | NFR9 Layer separation | `frontend/`, `backend/` (routers / services / models), MySQL | Structure |
 
 ## Safety and business rules (SRS 5.2, 5.5)
@@ -46,6 +50,15 @@ Maps each SRS requirement to where it is implemented and how it is verified. Tes
 | At least one active admin always exists | `update_user` (`test_last_admin_cannot_be_demoted`) |
 
 ## Notes for the next SRS revision
+
+**New requirements to add (built and tested):**
+
+- **FR1.4 Product barcodes.** An admin can attach one or more barcodes to a product. Each barcode belongs to exactly one product; a duplicate is rejected with the name of the product that already has it.
+- **FR2.5 Scan to record.** Users can select a product by scanning its barcode with a USB/Bluetooth scanner or a device camera. An unknown barcode shows a message; admins can add a product with that barcode.
+- **FR7.2 Movement source.** Each stock movement records how it was entered (manual, scanner, camera). The audit log and its CSV export can be filtered by source.
+- **Scope (section 1.2):** move barcode scanning from "out of scope" into scope. POS/till integration, scan-to-sell, spreadsheet import, multi-branch and wholesale stay out of scope as the Phase 2/3 roadmap.
+
+**Existing inconsistencies:**
 
 - **Section 5.5** says admins may "edit historical stock records". The class diagram (B.1) and FR7.1 treat movements as immutable. The build follows the diagram: an admin corrects a mistake by recording a compensating movement with a note, so the audit trail stays complete. Consider rewording 5.5 to match.
 - **NFR numbering** skips NFR7.

@@ -2,7 +2,9 @@
 
 A web-based inventory management system for small, single-location retail businesses (scoped to Nairobi, Kenya). Built to the StockWise SRS v1.1.
 
-**Stack:** React 18 (Vite) · FastAPI · SQLAlchemy 2 · MySQL 8 · JWT + bcrypt
+**Stack:** React 18 (Vite) · FastAPI · SQLAlchemy 2 + Alembic · MySQL 8 · JWT + bcrypt
+
+Stock can be recorded by typing, with a USB/Bluetooth barcode scanner, or with a phone or laptop camera. Every method goes through the same rules and audit log, and each movement records how it was entered.
 
 ```
 stockwise/
@@ -15,11 +17,14 @@ stockwise/
 │   │   ├── deps.py             auth + admin-role dependencies (NFR2)
 │   │   ├── services/stock_service.py   the only code that changes stock (B.3 sequence diagram)
 │   │   └── routers/            one router per resource (NFR9)
+│   ├── migrations/             Alembic database migrations
 │   ├── scripts/seed.py         demo data
 │   ├── scripts/load_test.py    NFR3 concurrency/latency check
 │   └── tests/                  pytest suite, named by requirement ID
 ├── frontend/           React single-page app
-│   └── src/pages/      Login, Dashboard, RecordStock, Products, ProductDetail, Suppliers, Reports, Users
+│   └── src/
+│       ├── pages/              Login, Dashboard, RecordStock, Products, ProductDetail, Suppliers, Reports, Users
+│       └── components/         shared UI, ProductPicker (search + scan), BarcodeScanner (camera)
 ├── docs/
 │   ├── USER_GUIDE.md           end-user guide (SRS 2.6)
 │   └── TRACEABILITY.md         requirement → code → test map
@@ -29,6 +34,8 @@ stockwise/
 ## Quick start (local development)
 
 Prerequisites: Python 3.11+, Node 20+, MySQL 8.
+
+> **macOS:** the built-in `python3` is 3.9, which is too old. Use Homebrew's: `brew install python@3.12`, then create the venv with `/opt/homebrew/bin/python3.12 -m venv .venv`. Check with `python --version` once the venv is active.
 
 **1. Database**
 
@@ -44,10 +51,10 @@ On macOS: `brew install mysql && brew services start mysql`, then run the SQL ab
 
 ```bash
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env          # edit JWT_SECRET
-python -m scripts.seed        # creates tables + demo data
+python -m scripts.seed        # runs migrations + loads demo data
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -63,6 +70,11 @@ npm run dev
 
 Open http://localhost:5173. Vite proxies `/api` to port 8000.
 
+**Barcode scanning.** Every seeded product has a demo EAN-13 barcode, shown on its product page.
+- *USB/Bluetooth scanner:* on **Record stock**, click the search box and scan. Scanners type like a keyboard, so there is no setup.
+- *Camera:* tap **Scan**. Browsers allow the camera only on `https://` or `localhost`, so on a phone, test against the deployed (HTTPS) site rather than your laptop's network address.
+- *No scanner?* Type a barcode into the search box and press Enter.
+
 **Demo accounts** (from the seed script):
 
 | Role  | Email                   | Password    |
@@ -72,6 +84,16 @@ Open http://localhost:5173. Vite proxies `/api` to port 8000.
 | Staff | brian@stockwise.co.ke   | Staff@12345 |
 
 To start with an empty database instead, skip the seed step and set `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` in `.env`. The API creates that admin on first start if there are no users.
+
+## Database migrations
+
+The API applies migrations automatically when it starts (and the seed script does too), so normally there is nothing to run. A database created by StockWise v1.0, before migrations existed, is detected and upgraded in place without losing data.
+
+```bash
+alembic upgrade head                                  # apply migrations by hand
+alembic revision --autogenerate -m "describe change"  # after changing models.py
+python -m scripts.seed --reset                        # wipe everything and reload demo data
+```
 
 ## Docker
 
@@ -86,9 +108,9 @@ Open http://localhost:8080. Set `JWT_SECRET` and `MYSQL_PASSWORD` in a root `.en
 
 ```bash
 cd backend
-pytest                                   # fast, in-memory SQLite (70 tests)
+pytest                                   # fast, in-memory SQLite (91 tests)
 
-# Full suite against real MySQL, including the row-lock concurrency test:
+# Full suite against real MySQL (96 tests), adding the row-lock concurrency and migration tests:
 TEST_DATABASE_URL=mysql+pymysql://stockwise:stockwise@127.0.0.1/stockwise_test pytest
 ```
 
@@ -106,6 +128,9 @@ Measured during development: 10 concurrent users, 1,000 requests, p95 of 83–11
 
 - **Stock changes go through one service.** `StockService.record_movement` locks the product row (`SELECT … FOR UPDATE`), applies the negative-stock rule, updates stock and inserts the movement in one transaction. Two cashiers selling the last units at the same moment cannot oversell. `tests/test_concurrency.py` proves this, and it fails if the lock is removed.
 - **Movements are immutable and are the audit log** (FR7.1). Corrections are made with a new movement, never by editing history.
+- **One core, many input channels.** Typed, scanner and camera entries all call the same `record_movement`, so the negative-stock rule, low-stock alerts and audit log behave identically. Each movement stores its `source` (manual, scanner or camera; import, till and API are reserved for later phases).
+- **Barcodes are a separate table.** A product can have several (single unit and carton), and each barcode belongs to exactly one product.
+- **Scanner detection is by typing speed.** USB scanners "type" a code in a few milliseconds; keystrokes averaging under 35 ms are recorded as `SCANNER`, slower typing as `MANUAL`.
 - **Opening stock is a movement.** When a product is created with initial stock, that stock is recorded as a stock-in, so every unit can be traced.
 - **Roles are checked against the database on every request**, not just read from the JWT. Demoting or disabling a user takes effect immediately.
 - **Timestamps are stored in UTC.** Report date ranges and CSV times use the business timezone (`BUSINESS_TIMEZONE`, default Africa/Nairobi).
@@ -118,13 +143,14 @@ Measured during development: 10 concurrent users, 1,000 requests, p95 of 83–11
 | POST | `/api/auth/login` | — | Log in, get JWT |
 | GET | `/api/auth/me` | any | Current user |
 | GET | `/api/dashboard` | any | Totals, low-stock list, recent movements |
-| GET | `/api/products` | any | Search/filter/sort catalogue |
+| GET | `/api/products` | any | Search/filter/sort catalogue (name, SKU or exact barcode) |
+| GET | `/api/products/by-barcode/{code}` | any | Find the product for a scanned barcode |
 | POST / PATCH | `/api/products[/{id}]` | admin | Create / edit |
 | POST | `/api/products/{id}/archive` · `/restore` | admin | Archive / restore |
 | DELETE | `/api/products/{id}` | admin | Delete (only if no history) |
 | PUT | `/api/products/{id}/suppliers` | admin | Link suppliers |
-| POST | `/api/stock/movements` | any | Stock in/out (`override` admin-only) |
-| GET | `/api/stock/movements` | any | Movement history |
+| POST | `/api/stock/movements` | any | Stock in/out with `source` (`override` admin-only) |
+| GET | `/api/stock/movements` | any | Movement history (filter by product, type, source, dates) |
 | GET/POST/PATCH/DELETE | `/api/suppliers…` | admin | Supplier CRUD; delete deactivates if linked |
 | GET | `/api/reports/stock` · `/stock.csv` | admin | Stock report + CSV |
 | GET | `/api/reports/audit` · `/movements.csv` | admin | Audit log + CSV |
