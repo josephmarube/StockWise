@@ -1,0 +1,22 @@
+# Render Blueprint: New > Blueprint > pick this repo. Render builds the root Dockerfile.
+# You will be asked for the values marked sync: false (from your Aiven MySQL service).
+services:
+  - type: web
+    name: stockwise
+    runtime: docker
+    plan: free
+    region: frankfurt          # pick the region closest to your Aiven database
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL        # Aiven "Service URI": mysql://avnadmin:...@...:port/defaultdb?ssl-mode=REQUIRED
+        sync: false
+      - key: DATABASE_CA_CERT    # Aiven "CA certificate" (paste the whole PEM text)
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WEB_CONCURRENCY     # free instances have 512 MB RAM
+        value: "1"
+      - key: BUSINESS_TIMEZONE
+        value: Africa/Nairobi
