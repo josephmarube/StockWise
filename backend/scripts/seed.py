@@ -6,12 +6,11 @@ The two shops show multi-business isolation: each admin sees only their own shop
 Usage (from backend/):  python -m scripts.seed            # refuses if data exists
                         python -m scripts.seed --reset    # drops and recreates all tables
 
-Every demo account gets the same password: SEED_PASSWORD from the environment
-(or .env), or a random one that is printed at the end. No password is stored in code.
+Demo passwords: admins use Admin@12345 and staff use Staff@12345. Set SEED_PASSWORD
+to give every demo account a different password instead (do this for a public deployment).
 """
 import os
 import random
-import secrets
 import sys
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -112,12 +111,15 @@ def ean13(seed: int) -> str:
     return body + str((10 - total % 10) % 10)
 
 
-def seed_shop(db, spec: ShopSpec, rng: random.Random, password_hash: str) -> None:
+DEMO_PASSWORDS = {Role.ADMIN: "Admin@12345", Role.STAFF: "Staff@12345"}
+
+
+def seed_shop(db, spec: ShopSpec, rng: random.Random, hashes: dict) -> None:
     biz = Business(name=spec.name)
     db.add(biz)
     db.flush()
     bid = biz.id
-    users = [User(business_id=bid, name=n, email=e, password_hash=password_hash, role=r) for n, e, r in spec.users]
+    users = [User(business_id=bid, name=n, email=e, password_hash=hashes[r], role=r) for n, e, r in spec.users]
     cats = {c: Category(business_id=bid, name=c) for c in sorted({p[2] for p in spec.products})}
     sups = [Supplier(business_id=bid, name=n, contact_person=c, phone=ph, email=e, address=a) for n, c, ph, e, a in spec.suppliers]
     db.add_all([*users, *cats.values(), *sups])
@@ -169,24 +171,24 @@ def main(reset: bool) -> None:
     else:
         upgrade_to_head()
     rng = random.Random(42)
-    password = os.getenv("SEED_PASSWORD", "").strip() or secrets.token_urlsafe(9)
-    if len(password) < 8:
+    override = os.getenv("SEED_PASSWORD", "").strip()
+    if override and len(override) < 8:
         sys.exit("SEED_PASSWORD must be at least 8 characters.")
+    passwords = {role: override or pw for role, pw in DEMO_PASSWORDS.items()}
 
     with SessionLocal() as db:
         if db.scalar(select(func.count()).select_from(User)):
             sys.exit("Database already has data. Run with --reset to wipe and reseed.")
-        pw_hash = hash_password(password)
+        hashes = {role: hash_password(pw) for role, pw in passwords.items()}
         for spec in SHOPS:
-            seed_shop(db, spec, rng, pw_hash)
+            seed_shop(db, spec, rng, hashes)
         db.commit()
 
     print("Seeded two demo businesses. Log in with:")
     for spec in SHOPS:
         print(f"  {spec.name}")
         for _, e, r in spec.users:
-            print(f"    {r.value:5}  {e}")
-    print(f"  Password for every demo account: {password}")
+            print(f"    {r.value:5}  {e}  /  {passwords[r]}")
     print("  (each product has a demo barcode; see Products > product page)")
 
 

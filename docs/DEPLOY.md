@@ -26,7 +26,7 @@ In `backend/`, with the venv active:
 ```bash
 export DATABASE_URL='<your Aiven Service URI>'
 export DATABASE_SSL_CA=ca.pem
-export SEED_PASSWORD='<choose a password for the demo accounts>'
+export SEED_PASSWORD='<choose a password for the live demo accounts>'
 python -m scripts.seed
 ```
 
@@ -34,7 +34,7 @@ Paste your own Service URI, and keep the single quotes. This creates the tables 
 
 To start empty instead, skip this step. The tables are created automatically on first start, and anyone can create a business at `/signup`.
 
-**Security:** the demo password is the one you chose, and it isn't stored anywhere in the code. Give it to your assessors in your submission document. Assessors can also create their own business at `/signup`.
+**Security:** on the live site, use `SEED_PASSWORD` so the demo accounts don't use the passwords published in the README. Give that password to your assessors in your submission document. Assessors can also create their own business at `/signup`.
 
 ## 3. Deploy the app on Render
 

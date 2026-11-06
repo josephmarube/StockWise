@@ -65,7 +65,7 @@ cd backend
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env          # put your database password in DATABASE_URL
-python -m scripts.seed        # runs migrations, loads demo data, prints the demo password
+python -m scripts.seed        # runs migrations + loads demo data
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -88,15 +88,15 @@ Open http://localhost:5173. Vite proxies `/api` to port 8000.
 
 **Demo accounts** (from the seed script). There are two separate businesses, so you can see that each one sees only its own data:
 
-| Business | Role | Email |
-|---|---|---|
-| Mama Njeri Duka (shop) | Admin | admin@stockwise.co.ke |
-| | Staff | grace@stockwise.co.ke |
-| | Staff | brian@stockwise.co.ke |
-| Kilimani Hardware | Admin | wanjiru@kilimanihardware.co.ke |
-| | Staff | daniel@kilimanihardware.co.ke |
+| Business | Role | Email | Password |
+|---|---|---|---|
+| Mama Njeri Duka (shop) | Admin | admin@stockwise.co.ke | Admin@12345 |
+| | Staff | grace@stockwise.co.ke | Staff@12345 |
+| | Staff | brian@stockwise.co.ke | Staff@12345 |
+| Kilimani Hardware | Admin | wanjiru@kilimanihardware.co.ke | Admin@12345 |
+| | Staff | daniel@kilimanihardware.co.ke | Staff@12345 |
 
-All demo accounts share one password. The seed script prints it at the end. To choose it yourself, set `SEED_PASSWORD` in `backend/.env` (8+ characters) before seeding.
+These are demo passwords for local use. For a public deployment, seed with `SEED_PASSWORD` set: every demo account then uses that password instead.
 
 **Or create your own business:** open http://localhost:5173/signup. To add staff, go to **Users → Invite people** and send them the link.
 
@@ -140,7 +140,7 @@ The MySQL run needs the empty `stockwise_test` database from step 1. Test accoun
 **Performance (NFR3).** Start the API against a seeded database, then run:
 
 ```bash
-python -m scripts.load_test --users 10 --rounds 25   # uses SEED_PASSWORD, or pass --password
+python -m scripts.load_test --users 10 --rounds 25
 ```
 
 Measured during development: 10 concurrent users, 1,000 requests, p95 of 83–117 ms per operation, 0 errors (target is under 1,000 ms).

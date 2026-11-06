@@ -1,7 +1,8 @@
 """NFR3 performance check: N concurrent logged-in users doing standard CRUD-style requests.
 
-Usage (API must be running, seeded with a known SEED_PASSWORD):
-    SEED_PASSWORD=... python -m scripts.load_test --base http://localhost:8000 --users 10 --rounds 20
+Usage (API must be running and seeded):
+    python -m scripts.load_test --base http://localhost:8000 --users 10 --rounds 20
+If you seeded with SEED_PASSWORD, the same variable is used here.
 
 Each simulated user logs in, then repeatedly: lists products, opens the dashboard,
 opens a product, and records a stock-in of 1 unit. Reports p50/p95/max latency per
@@ -16,12 +17,17 @@ from collections import defaultdict
 
 import httpx
 
-# Demo accounts from scripts/seed.py; they share the password given to the seed (SEED_PASSWORD).
-ACCOUNTS = ["admin@stockwise.co.ke", "grace@stockwise.co.ke", "brian@stockwise.co.ke"]
+# Demo accounts from scripts/seed.py (default demo passwords unless SEED_PASSWORD was used).
+ACCOUNTS = [
+    ("admin@stockwise.co.ke", "Admin@12345"),
+    ("grace@stockwise.co.ke", "Staff@12345"),
+    ("brian@stockwise.co.ke", "Staff@12345"),
+]
 
 
-async def user_session(client: httpx.AsyncClient, idx: int, rounds: int, timings: dict, errors: list, pw: str):
-    email = ACCOUNTS[idx % len(ACCOUNTS)]
+async def user_session(client: httpx.AsyncClient, idx: int, rounds: int, timings: dict, errors: list, override: str | None):
+    email, default_pw = ACCOUNTS[idx % len(ACCOUNTS)]
+    pw = override or default_pw
     r = await client.post("/api/auth/login", json={"email": email, "password": pw})
     r.raise_for_status()
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
@@ -76,8 +82,7 @@ if __name__ == "__main__":
     ap.add_argument("--base", default="http://localhost:8000")
     ap.add_argument("--users", type=int, default=10)
     ap.add_argument("--rounds", type=int, default=20)
-    ap.add_argument("--password", default=os.getenv("SEED_PASSWORD"), help="demo account password (default: $SEED_PASSWORD)")
+    ap.add_argument("--password", default=os.getenv("SEED_PASSWORD") or None,
+                    help="only if you seeded with SEED_PASSWORD (default: the demo passwords)")
     a = ap.parse_args()
-    if not a.password:
-        ap.error("give --password or set SEED_PASSWORD to the password used when seeding")
     raise SystemExit(0 if asyncio.run(main(a.base, a.users, a.rounds, a.password)) else 1)
