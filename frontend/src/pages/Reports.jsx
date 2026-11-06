@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useApi, useDebounced } from '../lib/hooks'
 import { fmtDateFull, fmtMoney, fmtNum, todayLocal } from '../lib/format'
-import { Empty, ErrorNote, Icon, Pager, Spinner, TypeTag, useToast } from '../components/ui'
+import { Empty, ErrorNote, Icon, Pager, SourceTag, Spinner, TypeTag, useToast } from '../components/ui'
 
 const PRESETS = [
   { label: 'Today', days: 0 },
@@ -111,11 +111,12 @@ function AuditLog({ start, end }) {
   const toast = useToast()
   const [userId, setUserId] = useState('')
   const [type, setType] = useState('')
+  const [source, setSource] = useState('')
   const [q, setQ] = useState('')
   const dq = useDebounced(q)
   const [offset, setOffset] = useState(0)
   const users = useApi('/api/users')
-  const { data, error, loading, reload } = useApi('/api/reports/audit', { start, end, user_id: userId, type, q: dq, limit: LIMIT, offset })
+  const { data, error, loading, reload } = useApi('/api/reports/audit', { start, end, user_id: userId, type, source, q: dq, limit: LIMIT, offset })
 
   const reset = (fn) => (e) => { fn(e.target.value); setOffset(0) }
 
@@ -130,7 +131,10 @@ function AuditLog({ start, end }) {
         <select value={type} onChange={reset(setType)} aria-label="Type">
           <option value="">In and out</option><option value="IN">Stock in</option><option value="OUT">Stock out</option>
         </select>
-        <button className="btn btn-ghost" onClick={() => api.download('/api/reports/movements.csv', { start, end, user_id: userId, type }, 'audit.csv').then(() => toast('CSV downloaded')).catch((e) => toast(e.message, 'error'))}>
+        <select value={source} onChange={reset(setSource)} aria-label="How it was recorded">
+          <option value="">Any method</option><option value="MANUAL">Typed</option><option value="SCANNER">Scanner</option><option value="CAMERA">Camera</option>
+        </select>
+        <button className="btn btn-ghost" onClick={() => api.download('/api/reports/movements.csv', { start, end, user_id: userId, type, source }, 'audit.csv').then(() => toast('CSV downloaded')).catch((e) => toast(e.message, 'error'))}>
           <Icon name="down" size={18} /> Export CSV
         </button>
       </div>
@@ -141,7 +145,7 @@ function AuditLog({ start, end }) {
         <>
           <div className="table-scroll">
             <table className="table">
-              <thead><tr><th>When</th><th>User</th><th>Product</th><th>Type</th><th className="num">Qty</th><th className="num">Stock after</th><th>Note</th></tr></thead>
+              <thead><tr><th>When</th><th>User</th><th>Product</th><th>Type</th><th>Method</th><th className="num">Qty</th><th className="num">Stock after</th><th>Note</th></tr></thead>
               <tbody>
                 {data.items.map((m) => (
                   <tr key={m.id}>
@@ -149,6 +153,7 @@ function AuditLog({ start, end }) {
                     <td className="nowrap">{m.user.name}<span className="cell-sub">{m.user.role === 'ADMIN' ? 'Admin' : 'Staff'}</span></td>
                     <td><span className="cell-title">{m.product.name}</span><span className="cell-sub">{m.product.sku}</span></td>
                     <td><TypeTag type={m.type} override={m.override} /></td>
+                    <td><SourceTag source={m.source} always /></td>
                     <td className={`num qty-${m.type.toLowerCase()}`}>{m.type === 'IN' ? '+' : '−'}{fmtNum(m.quantity)}</td>
                     <td className="num">{fmtNum(m.stock_after)}</td>
                     <td className="muted">{m.note}</td>

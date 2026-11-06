@@ -5,7 +5,7 @@ import { useApi } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
 import { fmtDateFull, fmtMoney, fmtNum } from '../lib/format'
 import ProductForm from '../components/ProductForm'
-import { Confirm, Empty, ErrorNote, Icon, Modal, Pager, Spinner, StockBadge, StockBar, TypeTag, useToast } from '../components/ui'
+import { Confirm, Empty, ErrorNote, Icon, Modal, Pager, SourceTag, Spinner, StockBadge, StockBar, TypeTag, useToast } from '../components/ui'
 
 const LIMIT = 20
 
@@ -69,6 +69,10 @@ export default function ProductDetail() {
             <div><dt>Unit price</dt><dd>{fmtMoney(p.unit_price)}</dd></div>
             <div><dt>Stock value</dt><dd>{fmtMoney(p.current_stock * Number(p.unit_price))}</dd></div>
           </dl>
+          <div className="barcodes-line">
+            <Icon name="barcode" size={16} />
+            {p.barcodes.length ? p.barcodes.join(', ') : <span className="muted">No barcode{isAdmin ? ' - add one with Edit details' : ''}</span>}
+          </div>
         </div>
 
         <div className="panel">
@@ -103,7 +107,7 @@ export default function ProductDetail() {
                 {hist.data.items.map((m) => (
                   <tr key={m.id}>
                     <td className="nowrap">{fmtDateFull(m.created_at)}</td>
-                    <td><TypeTag type={m.type} override={m.override} /></td>
+                    <td><span className="tags"><TypeTag type={m.type} override={m.override} /><SourceTag source={m.source} /></span></td>
                     <td className={`num qty-${m.type.toLowerCase()}`}>{m.type === 'IN' ? '+' : '−'}{fmtNum(m.quantity)}</td>
                     <td className="num">{fmtNum(m.stock_after)}</td>
                     <td className="hide-sm">{m.user.name}</td>

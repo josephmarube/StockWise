@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
 import { fmtAgo, fmtMoney, fmtNum } from '../lib/format'
-import { Empty, ErrorNote, Icon, Spinner, StockBar, StockBadge, TypeTag } from '../components/ui'
+import { Empty, ErrorNote, Icon, Spinner, StockBar, StockBadge, TypeTag, sourceLabel } from '../components/ui'
 
 export default function Dashboard() {
   const { user, isAdmin } = useAuth()
@@ -84,7 +84,7 @@ export default function Dashboard() {
                       <TypeTag type={m.type} override={m.override} />
                       <div className="feed-main">
                         <Link to={`/products/${m.product.id}`} className="feed-name">{m.product.name}</Link>
-                        <span className="feed-meta">{m.user.name}, {fmtAgo(m.created_at)}{m.note ? ` - ${m.note}` : ''}</span>
+                        <span className="feed-meta">{m.user.name}, {fmtAgo(m.created_at)}{m.source !== 'MANUAL' ? `, ${sourceLabel(m.source).toLowerCase()}` : ''}{m.note ? ` - ${m.note}` : ''}</span>
                       </div>
                       <span className={`feed-qty qty-${m.type.toLowerCase()}`}>{m.type === 'IN' ? '+' : '−'}{fmtNum(m.quantity)}</span>
                     </li>
