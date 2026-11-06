@@ -37,6 +37,7 @@ Maps each SRS requirement to where it is implemented and how it is verified. Tes
 | NFR6 Chrome & Edge | Standard React/CSS, no browser-specific APIs | E2E on Chromium (the engine behind both Chrome and Edge) |
 | NFR8 Client + server validation | Pydantic schemas + readable 422 handler; form checks in every React form | `test_fr1_1_invalid_fields_rejected`, `test_nfr8_invalid_quantity_rejected`, `test_validation_errors_are_readable`; E2E client errors |
 | Maintainability: schema changes | Alembic migrations; v1.0 databases detected and upgraded in place | `test_migrations.py` (MySQL): fresh install matches models, v1.0 database upgrades with data kept, idempotent, reset |
+| SRS 3.4 HTTPS / secure transport | Render serves HTTPS; database traffic uses TLS with CA and hostname verification; production refuses a weak `JWT_SECRET` | `test_deploy_config.py` (Aiven URI, TLS contexts, secret check, static serving); manual TLS checks against MySQL (encrypted, refused without TLS, refused with wrong CA, refused on hostname mismatch) |
 | NFR9 Layer separation | `frontend/`, `backend/` (routers / services / models), MySQL | Structure |
 
 ## Safety and business rules (SRS 5.2, 5.5)

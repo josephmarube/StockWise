@@ -26,9 +26,12 @@ stockwise/
 │       ├── pages/              Login, Dashboard, RecordStock, Products, ProductDetail, Suppliers, Reports, Users
 │       └── components/         shared UI, ProductPicker (search + scan), BarcodeScanner (camera)
 ├── docs/
+│   ├── DEPLOY.md               Aiven + Render deployment guide
 │   ├── USER_GUIDE.md           end-user guide (SRS 2.6)
 │   └── TRACEABILITY.md         requirement → code → test map
-└── docker-compose.yml
+├── Dockerfile                  production image (frontend build + API)
+├── docker-compose.yml          production image + MySQL, for local runs
+└── render.yaml                 Render Blueprint
 ```
 
 ## Quick start (local development)
@@ -95,22 +98,25 @@ alembic revision --autogenerate -m "describe change"  # after changing models.py
 python -m scripts.seed --reset                        # wipe everything and reload demo data
 ```
 
-## Docker
+## Deployment and Docker
 
-```bash
-docker compose up --build
-docker compose exec backend python -m scripts.seed   # optional demo data
-```
+Production is a single Docker image (root `Dockerfile`): FastAPI serves the API and the built React app from one HTTPS address. The database is hosted MySQL (Aiven), connected over TLS.
 
-Open http://localhost:8080. Set `JWT_SECRET` and `MYSQL_PASSWORD` in a root `.env` file before deploying anywhere real, and put the stack behind a TLS-terminating proxy so all traffic is HTTPS (SRS 3.4).
+- **Deploy to Render + Aiven:** follow [docs/DEPLOY.md](docs/DEPLOY.md). `render.yaml` is a ready-made Render Blueprint.
+- **Run the production image locally** (needs Docker Desktop):
+  ```bash
+  docker compose up --build
+  docker compose exec app python -m scripts.seed   # optional demo data
+  ```
+  Open http://localhost:8080.
 
 ## Tests
 
 ```bash
 cd backend
-pytest                                   # fast, in-memory SQLite (91 tests)
+pytest                                   # fast, in-memory SQLite (106 tests)
 
-# Full suite against real MySQL (96 tests), adding the row-lock concurrency and migration tests:
+# Full suite against real MySQL (111 tests), adding the row-lock concurrency and migration tests:
 TEST_DATABASE_URL=mysql+pymysql://stockwise:stockwise@127.0.0.1/stockwise_test pytest
 ```
 
