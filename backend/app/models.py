@@ -1,4 +1,9 @@
-"""Persistent entities. Mirrors the class diagram in SRS Appendix B.1."""
+"""Persistent entities. Mirrors the class diagram in SRS Appendix B.1.
+
+Multi-business (multi-tenant): every row belongs to one Business, and every
+query is filtered by the signed-in user's business_id. Uniqueness rules
+(SKU, barcode, category name) apply within a business, not across them.
+"""
 from __future__ import annotations
 
 import enum
@@ -14,8 +19,10 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Index,
     Table,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -47,6 +54,21 @@ class MovementSource(str, enum.Enum):
     API = "API"          # other systems (reserved)
 
 
+class Business(Base):
+    """A shop using StockWise. Like a Slack workspace: its data is private to its members."""
+
+    __tablename__ = "businesses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+def _business_fk() -> Mapped[int]:
+    return mapped_column(ForeignKey("businesses.id", ondelete="RESTRICT"), index=True)
+
+
 # Association table resolving Product <-> Supplier many-to-many (ProductSupplier).
 product_suppliers = Table(
     "product_suppliers",
@@ -60,13 +82,16 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = _business_fk()
     name: Mapped[str] = mapped_column(String(120))
+    # Globally unique: one account belongs to exactly one business.
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[Role] = mapped_column(Enum(Role, name="role"), default=Role.STAFF)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
+    business: Mapped[Business] = relationship()
     movements: Mapped[list[StockMovement]] = relationship(back_populates="user")
 
     def has_role(self, role: Role) -> bool:
@@ -75,18 +100,22 @@ class User(Base):
 
 class Category(Base):
     __tablename__ = "categories"
+    __table_args__ = (UniqueConstraint("business_id", "name", name="uq_categories_business_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
+    business_id: Mapped[int] = _business_fk()
+    name: Mapped[str] = mapped_column(String(100))
 
     products: Mapped[list[Product]] = relationship(back_populates="category")
 
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (UniqueConstraint("business_id", "sku", name="uq_products_business_sku"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    sku: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    business_id: Mapped[int] = _business_fk()
+    sku: Mapped[str] = mapped_column(String(64), index=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id", ondelete="RESTRICT"))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
@@ -125,12 +154,15 @@ class ProductBarcode(Base):
     """A product can carry several barcodes (e.g. single unit and carton)."""
 
     __tablename__ = "product_barcodes"
+    __table_args__ = (UniqueConstraint("business_id", "code", name="uq_product_barcodes_business_code"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Same as the product's business; stored so a barcode is unique within a business.
+    business_id: Mapped[int] = _business_fk()
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), index=True
     )
-    code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    code: Mapped[str] = mapped_column(String(64), index=True)
 
     product: Mapped[Product] = relationship(back_populates="barcodes")
 
@@ -139,6 +171,7 @@ class Supplier(Base):
     __tablename__ = "suppliers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = _business_fk()
     name: Mapped[str] = mapped_column(String(200))
     contact_person: Mapped[str | None] = mapped_column(String(120), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -164,8 +197,12 @@ class StockMovement(Base):
     """Immutable stock event; doubles as the audit trail (FR7.1)."""
 
     __tablename__ = "stock_movements"
+    __table_args__ = (Index("ix_stock_movements_business_created", "business_id", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Same as the product's business; stored so audit queries filter without a join.
+    # (Indexed by ix_stock_movements_business_created.)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="RESTRICT"))
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="RESTRICT"), index=True
     )
@@ -185,3 +222,27 @@ class StockMovement(Base):
 
     product: Mapped[Product] = relationship(back_populates="movements")
     user: Mapped[User] = relationship(back_populates="movements")
+
+
+class Invite(Base):
+    """A one-time link an admin shares so a new member can join their business."""
+
+    __tablename__ = "invites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = _business_fk()
+    # Only the SHA-256 of the token is stored; the token itself is shown once to the admin.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    role: Mapped[Role] = mapped_column(Enum(Role, name="role"), default=Role.STAFF)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    business: Mapped[Business] = relationship()
+    created_by: Mapped[User] = relationship()
+
+    def is_usable(self, now: datetime) -> bool:
+        return self.accepted_at is None and self.revoked_at is None and now < self.expires_at

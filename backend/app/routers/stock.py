@@ -73,8 +73,10 @@ def list_movements(
     offset: int = Query(default=0, ge=0),
 ):
     """FR2.4: chronological stock-in/out history (newest first)."""
-    stmt = select(StockMovement).options(
-        selectinload(StockMovement.product), selectinload(StockMovement.user)
+    stmt = (
+        select(StockMovement)
+        .options(selectinload(StockMovement.product), selectinload(StockMovement.user))
+        .where(StockMovement.business_id == user.business_id)
     )
     if user.role != Role.ADMIN:
         stmt = stmt.join(Product).where(Product.archived.is_(False))

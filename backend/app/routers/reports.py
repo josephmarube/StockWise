@@ -29,7 +29,7 @@ def _range(start: date | None, end: date | None) -> tuple[date, date]:
     return start, end
 
 
-def _build_rows(db, lo: datetime, hi: datetime, include_archived: bool) -> list[StockReportRow]:
+def _build_rows(db, business_id: int, lo: datetime, hi: datetime, include_archived: bool) -> list[StockReportRow]:
     in_range = and_(
         StockMovement.product_id == Product.id,
         StockMovement.created_at >= lo,
@@ -49,6 +49,7 @@ def _build_rows(db, lo: datetime, hi: datetime, include_archived: bool) -> list[
         )
         .join(Category, Category.id == Product.category_id)
         .outerjoin(StockMovement, in_range)
+        .where(Product.business_id == business_id)
         .group_by(Product.id, Category.name)
         .order_by(Product.name)
     )
@@ -76,11 +77,15 @@ def _build_rows(db, lo: datetime, hi: datetime, include_archived: bool) -> list[
     return rows
 
 
-def _movements_stmt(lo, hi, product_id=None, user_id=None, type_=None, q=None, source=None):
+def _movements_stmt(business_id, lo, hi, product_id=None, user_id=None, type_=None, q=None, source=None):
     stmt = (
         select(StockMovement)
         .options(selectinload(StockMovement.product), selectinload(StockMovement.user))
-        .where(StockMovement.created_at >= lo, StockMovement.created_at < hi)
+        .where(
+            StockMovement.business_id == business_id,
+            StockMovement.created_at >= lo,
+            StockMovement.created_at < hi,
+        )
     )
     if product_id:
         stmt = stmt.where(StockMovement.product_id == product_id)
@@ -101,7 +106,7 @@ def _movements_stmt(lo, hi, product_id=None, user_id=None, type_=None, q=None, s
 @router.get("/stock", response_model=StockReport)
 def stock_report(
     db: DbSession,
-    _: AdminUser,
+    admin: AdminUser,
     start: date | None = None,
     end: date | None = None,
     include_archived: bool = False,
@@ -109,8 +114,8 @@ def stock_report(
     """FR6.1: current stock levels + movements over a selectable date range."""
     start, end = _range(start, end)
     lo, hi = local_date_range_to_utc(start, end)
-    rows = _build_rows(db, lo, hi, include_archived)
-    movements = db.execute(_movements_stmt(lo, hi).limit(500)).scalars().all()
+    rows = _build_rows(db, admin.business_id, lo, hi, include_archived)
+    movements = db.execute(_movements_stmt(admin.business_id, lo, hi).limit(500)).scalars().all()
     totals = {
         "products": len(rows),
         "units_on_hand": sum(r.current_stock for r in rows),
@@ -133,7 +138,7 @@ def stock_report(
 @router.get("/audit", response_model=MovementPage)
 def audit_log(
     db: DbSession,
-    _: AdminUser,
+    admin: AdminUser,
     start: date | None = None,
     end: date | None = None,
     user_id: int | None = None,
@@ -147,7 +152,7 @@ def audit_log(
     """FR7.1 / NFR5: who did what stock action, and when."""
     start, end = _range(start, end)
     lo, hi = local_date_range_to_utc(start, end)
-    stmt = _movements_stmt(lo, hi, product_id, user_id, type, q, source)
+    stmt = _movements_stmt(admin.business_id, lo, hi, product_id, user_id, type, q, source)
     total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery()))
     items = db.execute(stmt.limit(limit).offset(offset)).scalars().all()
     return MovementPage(items=items, total=total)
@@ -195,14 +200,14 @@ def _fmt_local(dt: datetime) -> str:
 @router.get("/stock.csv")
 def export_stock_csv(
     db: DbSession,
-    _: AdminUser,
+    admin: AdminUser,
     start: date | None = None,
     end: date | None = None,
     include_archived: bool = False,
 ):
     start, end = _range(start, end)
     lo, hi = local_date_range_to_utc(start, end)
-    rows = _build_rows(db, lo, hi, include_archived)
+    rows = _build_rows(db, admin.business_id, lo, hi, include_archived)
     return _csv_response(
         [
             "SKU", "Product", "Category", "Unit price", "Reorder threshold", "Current stock",
@@ -224,7 +229,7 @@ def export_stock_csv(
 @router.get("/movements.csv")
 def export_movements_csv(
     db: DbSession,
-    _: AdminUser,
+    admin: AdminUser,
     start: date | None = None,
     end: date | None = None,
     user_id: int | None = None,
@@ -235,7 +240,7 @@ def export_movements_csv(
     """Also serves as the audit-log export (FR7.1)."""
     start, end = _range(start, end)
     lo, hi = local_date_range_to_utc(start, end)
-    ms = db.execute(_movements_stmt(lo, hi, product_id, user_id, type, source=source)).scalars().all()
+    ms = db.execute(_movements_stmt(admin.business_id, lo, hi, product_id, user_id, type, source=source)).scalars().all()
     return _csv_response(
         [
             "Timestamp (local)", "Movement ID", "SKU", "Product", "Type", "Source", "Quantity",

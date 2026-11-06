@@ -70,7 +70,9 @@ def record_movement(
     try:
         # Row lock: two simultaneous stock-outs cannot both consume the same units.
         product = db.execute(
-            select(Product).where(Product.id == product_id).with_for_update()
+            select(Product)
+            .where(Product.id == product_id, Product.business_id == user.business_id)
+            .with_for_update()
         ).scalar_one_or_none()
 
         if product is None:
@@ -92,6 +94,7 @@ def record_movement(
 
         product.apply_movement(type_, quantity)
         movement = StockMovement(
+            business_id=product.business_id,
             product_id=product.id,
             user_id=user.id,
             type=type_,

@@ -38,7 +38,7 @@ def get_current_user(
         raise _unauthorized("Invalid token")
 
     user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or not user.business.is_active:
         raise _unauthorized("Account not found or disabled")
     return user
 

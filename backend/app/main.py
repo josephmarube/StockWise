@@ -13,8 +13,17 @@ from sqlalchemy import func, select, text
 from .config import get_settings
 from .database import SessionLocal, engine
 from .migrate import upgrade_to_head
-from .models import Role, User
-from .routers import auth, categories, dashboard, products, reports, stock, suppliers, users
+from .models import Business, Role, User
+from .routers import (
+    auth,
+    categories,
+    dashboard,
+    products,
+    reports,
+    stock,
+    suppliers,
+    users,
+)
 from .security import hash_password
 
 log = logging.getLogger("stockwise")
@@ -31,6 +40,7 @@ def init_db() -> None:
         if not has_users:
             db.add(
                 User(
+                    business=Business(name=s.bootstrap_business_name),
                     name="Administrator",
                     email=s.bootstrap_admin_email.lower(),
                     password_hash=hash_password(s.bootstrap_admin_password),

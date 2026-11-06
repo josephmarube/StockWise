@@ -37,7 +37,14 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
-    user: "UserOut"
+    user: "MeOut"
+
+
+# ---------- Business ----------
+class BusinessOut(ORM):
+    id: int
+    name: str
+    created_at: UTCDateTime
 
 
 # ---------- Users ----------
@@ -48,6 +55,10 @@ class UserOut(ORM):
     role: Role
     is_active: bool
     created_at: UTCDateTime
+
+
+class MeOut(UserOut):
+    business: BusinessOut
 
 
 class UserCreate(BaseModel):

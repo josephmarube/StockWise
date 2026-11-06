@@ -13,8 +13,8 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("", response_model=DashboardSummary)
-def summary(db: DbSession, _: CurrentUser):
-    active = Product.archived.is_(False)
+def summary(db: DbSession, user: CurrentUser):
+    active = (Product.business_id == user.business_id) & Product.archived.is_(False)
     count, units, value = db.execute(
         select(
             func.count(Product.id),
@@ -41,6 +41,7 @@ def summary(db: DbSession, _: CurrentUser):
         db.execute(
             select(StockMovement)
             .options(selectinload(StockMovement.product), selectinload(StockMovement.user))
+            .where(StockMovement.business_id == user.business_id)
             .order_by(StockMovement.created_at.desc(), StockMovement.id.desc())
             .limit(10)
         )

@@ -67,6 +67,7 @@ class Settings:
         self.business_timezone: str = os.getenv("BUSINESS_TIMEZONE", "Africa/Nairobi")
         self.bootstrap_admin_email: str | None = os.getenv("BOOTSTRAP_ADMIN_EMAIL")
         self.bootstrap_admin_password: str | None = os.getenv("BOOTSTRAP_ADMIN_PASSWORD")
+        self.bootstrap_business_name: str = os.getenv("BOOTSTRAP_BUSINESS_NAME", "My Business")
         # Built React app to serve from the API (production image). Unset in development.
         self.static_dir: str | None = os.getenv("STATIC_DIR") or None
         # Production image runs migrations once before starting workers.

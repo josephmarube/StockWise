@@ -41,7 +41,7 @@ def test_fresh_database_matches_models(eng):
     migrate.upgrade_to_head()
     assert _schema_diff(eng) == []
     with eng.connect() as c:
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0002"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0003"
 
 
 def test_v1_database_upgrades_and_keeps_data(eng):
@@ -64,7 +64,35 @@ def test_v1_database_upgrades_and_keeps_data(eng):
     with eng.connect() as c:
         assert c.execute(text("SELECT source FROM stock_movements")).scalar() == "MANUAL"
         assert c.execute(text("SELECT current_stock FROM products WHERE id=1")).scalar() == 5
+        # single-shop data moved into one business (migration 0003)
+        assert c.execute(text("SELECT name FROM businesses")).scalars().all() == ["My Business"]
+        for table in ("users", "categories", "products", "stock_movements"):
+            assert c.execute(text(f"SELECT COUNT(*) FROM {table} WHERE business_id IS NULL")).scalar() == 0
     assert "product_barcodes" in inspect(eng).get_table_names()
+
+
+def test_fresh_install_creates_no_placeholder_business(eng):
+    migrate.upgrade_to_head()
+    with eng.connect() as c:
+        assert c.execute(text("SELECT COUNT(*) FROM businesses")).scalar() == 0
+
+
+def test_v1_1_database_with_barcodes_moves_into_one_business(eng):
+    """A database at 0002 (barcodes, single shop) upgrades with barcodes kept and scoped."""
+    with eng.begin() as c:
+        command.upgrade(migrate._config(c), "0002")
+        c.execute(text("INSERT INTO users (id,name,email,password_hash,role,is_active,created_at) "
+                       "VALUES (1,'A','a@x.co','h','ADMIN',1,NOW())"))
+        c.execute(text("INSERT INTO categories (id,name) VALUES (1,'C')"))
+        c.execute(text("INSERT INTO products (id,sku,name,category_id,unit_price,reorder_threshold,"
+                       "current_stock,archived,created_at,updated_at) VALUES (1,'S','P',1,10,1,5,0,NOW(),NOW())"))
+        c.execute(text("INSERT INTO product_barcodes (product_id, code) VALUES (1, '6160000010011')"))
+    migrate.upgrade_to_head()
+    assert _schema_diff(eng) == []
+    with eng.connect() as c:
+        bid = c.execute(text("SELECT id FROM businesses")).scalar()
+        assert c.execute(text("SELECT business_id FROM product_barcodes")).scalar() == bid
+        assert c.execute(text("SELECT business_id FROM users")).scalar() == bid
 
 
 def test_upgrade_is_idempotent(eng):
@@ -76,7 +104,8 @@ def test_upgrade_is_idempotent(eng):
 def test_reset_rebuilds_empty_schema(eng):
     migrate.upgrade_to_head()
     with eng.begin() as c:
-        c.execute(text("INSERT INTO categories (name) VALUES ('X')"))
+        c.execute(text("INSERT INTO businesses (id, name, is_active, created_at) VALUES (1, 'B', 1, NOW())"))
+        c.execute(text("INSERT INTO categories (business_id, name) VALUES (1, 'X')"))
     migrate.reset_database()
     with eng.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM categories")).scalar() == 0

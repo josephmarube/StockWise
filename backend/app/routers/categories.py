@@ -9,18 +9,22 @@ router = APIRouter(prefix="/api/categories", tags=["categories"])
 
 
 @router.get("", response_model=list[CategoryOut])
-def list_categories(db: DbSession, _: CurrentUser):
-    return db.execute(select(Category).order_by(Category.name)).scalars().all()
+def list_categories(db: DbSession, user: CurrentUser):
+    return db.execute(
+        select(Category).where(Category.business_id == user.business_id).order_by(Category.name)
+    ).scalars().all()
 
 
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-def create_category(body: CategoryCreate, db: DbSession, _: AdminUser):
+def create_category(body: CategoryCreate, db: DbSession, admin: AdminUser):
     exists = db.execute(
-        select(Category).where(func.lower(Category.name) == body.name.lower())
+        select(Category).where(
+            Category.business_id == admin.business_id, func.lower(Category.name) == body.name.lower()
+        )
     ).scalar_one_or_none()
     if exists:
         raise HTTPException(status.HTTP_409_CONFLICT, "Category already exists")
-    cat = Category(name=body.name)
+    cat = Category(name=body.name, business_id=admin.business_id)
     db.add(cat)
     db.commit()
     db.refresh(cat)

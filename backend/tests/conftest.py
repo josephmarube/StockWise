@@ -15,11 +15,14 @@ from sqlalchemy.pool import StaticPool
 from app import database
 from app.database import Base, get_db
 from app.main import app
-from app.models import Category, Role, User
+from app.models import Business, Category, Role, User
 from app.security import hash_password
 
 ADMIN = {"email": "admin@shop.co.ke", "password": "AdminPass123"}
 STAFF = {"email": "staff@shop.co.ke", "password": "StaffPass123"}
+# A second, unrelated business used to prove isolation.
+OTHER_ADMIN = {"email": "boss@othershop.co.ke", "password": "OtherPass123"}
+OTHER_CATEGORY_ID = 3  # "Beverages" in the other business (same name is allowed per business)
 
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")  # e.g. mysql+pymysql://u:p@127.0.0.1/stockwise_test
@@ -45,14 +48,20 @@ def engine():
 def db(engine):
     Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     s = Session()
+    shop = Business(name="Test Shop")
+    other = Business(name="Other Shop")
+    s.add_all([shop, other])
+    s.flush()
     s.add_all(
         [
-            User(name="Amina Admin", email=ADMIN["email"], password_hash=hash_password(ADMIN["password"]), role=Role.ADMIN),
-            User(name="Sam Staff", email=STAFF["email"], password_hash=hash_password(STAFF["password"]), role=Role.STAFF),
-            Category(name="Beverages"),
-            Category(name="Household"),
+            User(business_id=shop.id, name="Amina Admin", email=ADMIN["email"], password_hash=hash_password(ADMIN["password"]), role=Role.ADMIN),
+            User(business_id=shop.id, name="Sam Staff", email=STAFF["email"], password_hash=hash_password(STAFF["password"]), role=Role.STAFF),
+            User(business_id=other.id, name="Olive Other", email=OTHER_ADMIN["email"], password_hash=hash_password(OTHER_ADMIN["password"]), role=Role.ADMIN),
         ]
     )
+    s.add_all([Category(business_id=shop.id, name="Beverages"), Category(business_id=shop.id, name="Household")])
+    s.flush()
+    s.add(Category(business_id=other.id, name="Beverages"))
     s.commit()
     yield s
     s.close()
@@ -97,6 +106,12 @@ def admin_h(client):
 @pytest.fixture()
 def staff_h(client):
     return _login(client, STAFF)
+
+
+@pytest.fixture()
+def other_h(client):
+    """Admin of the other business."""
+    return _login(client, OTHER_ADMIN)
 
 
 @pytest.fixture()
