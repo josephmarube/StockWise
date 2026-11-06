@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { stockState, fmtNum } from '../lib/format'
 
 /* ---------- Icons (inline, stroke-based) ---------- */
@@ -21,6 +22,8 @@ const paths = {
   back: 'M15 18l-6-6 6-6',
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z',
   archive: 'M21 8v13H3V8M1 3h22v5H1zM10 12h4',
+  camera: 'M14.5 4h-5L7.5 6.5H4A1.5 1.5 0 0 0 2.5 8v10A1.5 1.5 0 0 0 4 19.5h16a1.5 1.5 0 0 0 1.5-1.5V8A1.5 1.5 0 0 0 20 6.5h-3.5ZM12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z',
+  barcode: 'M3 5v14M7 5v14M10 5v14M14 5v14M17 5v14M21 5v14M5 5v14',
   more: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z',
 }
 export function Icon({ name, size = 20, ...rest }) {
@@ -53,14 +56,19 @@ export function ToastProvider({ children }) {
 export const useToast = () => useContext(ToastCtx)
 
 /* ---------- Modal ---------- */
-export function Modal({ title, onClose, children, footer, size = 'md' }) {
+// Open modals, newest last: only the top one reacts to Escape/Tab.
+const modalStack = []
+
+export function Modal({ title, onClose, children, footer, size = 'md', autoFocus = true }) {
   const ref = useRef(null)
   useEffect(() => {
     const prev = document.activeElement
     const el = ref.current
-    const first = el?.querySelector('input, select, textarea, button:not(.modal-x)')
-    first?.focus()
+    modalStack.push(el)
+    if (autoFocus) el?.querySelector('input, select, textarea, button:not(.modal-x)')?.focus()
+    else el?.focus()
     const onKey = (e) => {
+      if (modalStack[modalStack.length - 1] !== el) return
       if (e.key === 'Escape') onClose()
       if (e.key === 'Tab' && el) {
         const f = el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -72,11 +80,17 @@ export function Modal({ title, onClose, children, footer, size = 'md' }) {
     }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; prev?.focus?.() }
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      modalStack.splice(modalStack.indexOf(el), 1)
+      if (!modalStack.length) document.body.style.overflow = ''
+      prev?.focus?.()
+    }
   }, [onClose])
-  return (
+  // Rendered at the end of <body> so a dialog opened inside a form is not nested in that form.
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal modal-${size}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={ref}>
+      <div className={`modal modal-${size}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={ref} tabIndex={-1}>
         <header className="modal-head">
           <h2 id="modal-title">{title}</h2>
           <button className="icon-btn modal-x" onClick={onClose} aria-label="Close"><Icon name="x" /></button>
@@ -84,7 +98,8 @@ export function Modal({ title, onClose, children, footer, size = 'md' }) {
         <div className="modal-body">{children}</div>
         {footer && <footer className="modal-foot">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -134,6 +149,20 @@ export function StockBadge({ product }) {
   const state = stockState(product)
   if (state === 'ok') return null
   return <span className={`badge badge-${state}`}>{state === 'out' ? 'Out of stock' : 'Low stock'}</span>
+}
+
+const SOURCE_LABEL = { MANUAL: 'Typed', SCANNER: 'Scanner', CAMERA: 'Camera', IMPORT: 'Import', TILL: 'Till', API: 'API' }
+export const sourceLabel = (s) => SOURCE_LABEL[s] || s
+
+// How a movement was entered. Manual entries stay quiet; scanned ones get a small marker.
+export function SourceTag({ source, always = false }) {
+  if (!source || (source === 'MANUAL' && !always)) return null
+  return (
+    <span className={`source-tag source-${source.toLowerCase()}`}>
+      <Icon name={source === 'CAMERA' ? 'camera' : source === 'SCANNER' ? 'barcode' : 'edit'} size={12} />
+      {sourceLabel(source)}
+    </span>
+  )
 }
 
 export function TypeTag({ type, override }) {
