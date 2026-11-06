@@ -16,8 +16,10 @@ from .migrate import upgrade_to_head
 from .models import Business, Role, User
 from .routers import (
     auth,
+    business,
     categories,
     dashboard,
+    invites,
     products,
     reports,
     stock,
@@ -91,7 +93,7 @@ async def validation_handler(request: Request, exc: RequestValidationError):
     )
 
 
-for r in (auth, users, categories, products, suppliers, stock, dashboard, reports):
+for r in (auth, business, invites, users, categories, products, suppliers, stock, dashboard, reports):
     app.include_router(r.router)
 
 

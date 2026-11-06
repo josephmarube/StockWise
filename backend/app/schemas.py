@@ -40,11 +40,67 @@ class TokenResponse(BaseModel):
     user: "MeOut"
 
 
+class SignupRequest(BaseModel):
+    business_name: str = Field(min_length=2, max_length=120)
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+    _s = field_validator("business_name", "name")(_strip)
+
+
 # ---------- Business ----------
 class BusinessOut(ORM):
     id: int
     name: str
     created_at: UTCDateTime
+
+
+class BusinessUpdate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+
+    _s = field_validator("name")(_strip)
+
+
+# ---------- Invites ----------
+class InviteCreate(BaseModel):
+    role: Role = Role.STAFF
+    email: EmailStr | None = None  # if set, only this email can accept
+    days_valid: int = Field(default=7, ge=1, le=30)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_email(cls, v):
+        return None if v in ("", None) else v
+
+
+class InviteOut(ORM):
+    id: int
+    role: Role
+    email: str | None
+    created_at: UTCDateTime
+    expires_at: UTCDateTime
+    created_by: "UserBrief"
+
+
+class InviteCreated(InviteOut):
+    token: str  # shown once; only its hash is stored
+
+
+class InvitePreview(BaseModel):
+    business_name: str
+    role: Role
+    email: str | None
+    expires_at: UTCDateTime
+
+
+class InviteAccept(BaseModel):
+    token: str = Field(min_length=20, max_length=100)
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+    _s = field_validator("name")(_strip)
 
 
 # ---------- Users ----------
@@ -321,3 +377,5 @@ class StockReport(BaseModel):
 
 
 TokenResponse.model_rebuild()
+InviteOut.model_rebuild()
+InviteCreated.model_rebuild()

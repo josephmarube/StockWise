@@ -15,6 +15,7 @@ from sqlalchemy.pool import StaticPool
 from app import database
 from app.database import Base, get_db
 from app.main import app
+from app import ratelimit
 from app.models import Business, Category, Role, User
 from app.security import hash_password
 
@@ -26,6 +27,13 @@ OTHER_CATEGORY_ID = 3  # "Beverages" in the other business (same name is allowed
 
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")  # e.g. mysql+pymysql://u:p@127.0.0.1/stockwise_test
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    ratelimit.reset()
+    yield
+    ratelimit.reset()
 
 
 @pytest.fixture()
