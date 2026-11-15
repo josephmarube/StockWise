@@ -24,6 +24,9 @@ const paths = {
   archive: 'M21 8v13H3V8M1 3h22v5H1zM10 12h4',
   camera: 'M14.5 4h-5L7.5 6.5H4A1.5 1.5 0 0 0 2.5 8v10A1.5 1.5 0 0 0 4 19.5h16a1.5 1.5 0 0 0 1.5-1.5V8A1.5 1.5 0 0 0 20 6.5h-3.5ZM12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z',
   barcode: 'M3 5v14M7 5v14M10 5v14M14 5v14M17 5v14M21 5v14M5 5v14',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+  eyeOff: 'M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2',
+  check: 'M20 6 9 17l-5-5',
   more: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm7 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z',
 }
 export function Icon({ name, size = 20, ...rest }) {
@@ -174,9 +177,10 @@ export function TypeTag({ type, override }) {
   )
 }
 
-export function Empty({ title, children, action }) {
+export function Empty({ title, children, action, art = false }) {
   return (
     <div className="empty">
+      {art && <EmptyShelf />}
       <p className="empty-title">{title}</p>
       {children && <p className="empty-text">{children}</p>}
       {action}
@@ -210,4 +214,104 @@ export function Pager({ total, limit, offset, onChange }) {
 
 export function Spinner() {
   return <div className="spinner" role="progressbar" aria-label="Loading" />
+}
+
+
+/* ---------- Password input with show/hide (masked by default) ---------- */
+export function PasswordInput({ id, value, onChange, autoComplete = 'current-password', invalid, describedBy, ...rest }) {
+  const [shown, setShown] = useState(false)
+  return (
+    <div className="pw-input">
+      <input id={id} type={shown ? 'text' : 'password'} value={value} onChange={onChange}
+        autoComplete={autoComplete} aria-invalid={invalid || undefined} aria-describedby={describedBy}
+        autoCapitalize="none" autoCorrect="off" spellCheck={false} {...rest} />
+      <button type="button" className="pw-toggle" onClick={() => setShown((v) => !v)}
+        aria-label={shown ? 'Hide password' : 'Show password'} aria-pressed={shown} aria-controls={id}
+        title={shown ? 'Hide password' : 'Show password'}>
+        <Icon name={shown ? 'eyeOff' : 'eye'} size={19} />
+      </button>
+    </div>
+  )
+}
+
+// "New password" + "Confirm password" pair with live checks. Valid when both rules pass.
+export function NewPasswordFields({ value, confirm, onChange, onConfirmChange, errors = {}, idPrefix = 'pw', label = 'Password', optional = false }) {
+  const longEnough = value.length >= 8
+  const matches = value.length > 0 && value === confirm
+  const touched = value.length > 0
+  return (
+    <>
+      <Field label={label} id={`${idPrefix}-new`} error={errors.password}>
+        <PasswordInput id={`${idPrefix}-new`} value={value} onChange={onChange} autoComplete="new-password" invalid={!!errors.password} />
+      </Field>
+      <Field label="Confirm password" id={`${idPrefix}-confirm`} error={errors.confirm}>
+        <PasswordInput id={`${idPrefix}-confirm`} value={confirm} onChange={onConfirmChange} autoComplete="new-password" invalid={!!errors.confirm} />
+      </Field>
+      {(touched || !optional) && (
+        <ul className="pw-rules span-2" aria-live="polite">
+          <li className={longEnough ? 'ok' : ''}><Icon name={longEnough ? 'check' : 'minus'} size={14} /> At least 8 characters</li>
+          <li className={matches ? 'ok' : ''}><Icon name={matches ? 'check' : 'minus'} size={14} /> Both passwords match</li>
+        </ul>
+      )}
+    </>
+  )
+}
+
+export function checkNewPassword(value, confirm, { optional = false } = {}) {
+  const e = {}
+  if (optional && !value && !confirm) return e
+  if (value.length < 8) e.password = 'Use at least 8 characters.'
+  if (!confirm) e.confirm = 'Type the password again.'
+  else if (value !== confirm) e.confirm = "The passwords don't match."
+  return e
+}
+
+/* ---------- Loading skeletons ---------- */
+export function Skeleton({ w = '100%', h = 14, r = 6, style }) {
+  return <span className="skeleton" style={{ width: w, height: h, borderRadius: r, ...style }} aria-hidden="true" />
+}
+
+export function SkeletonRows({ rows = 6, cols = 4 }) {
+  return (
+    <div className="skeleton-table" role="progressbar" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <div className="skeleton-row" key={i}>
+          <Skeleton w={36} h={36} r={10} />
+          <div className="skeleton-cell"><Skeleton w={`${55 + ((i * 17) % 35)}%`} /><Skeleton w="30%" h={11} /></div>
+          {Array.from({ length: cols - 2 }, (_, j) => <Skeleton key={j} w={60} />)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ---------- Product initials avatar, tinted by category ---------- */
+const TINTS = [
+  ['#E7EAF6', '#2B3874'], ['#E3F3EA', '#16794A'], ['#FFF1CC', '#8A5F00'], ['#FCE7DA', '#9A3D12'],
+  ['#E6F0FA', '#1D5C96'], ['#F2E6F6', '#6B2C80'], ['#E5F4F4', '#1E6B6B'], ['#F1EEE6', '#5E5440'],
+]
+export function ProductAvatar({ name, categoryId = 0, size = 36 }) {
+  // Initials from words that start with a letter: "Yoghurt 250ml" -> "Y", "Bar Soap 800g" -> "BS"
+  const words = (name || '?').replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter((w) => /^[A-Za-z]/.test(w))
+  const initials = (words[0]?.[0] || '?') + (words[1]?.[0] || '')
+  const [bg, fg] = TINTS[Math.abs(categoryId) % TINTS.length]
+  return (
+    <span className="avatar" style={{ width: size, height: size, background: bg, color: fg, fontSize: size * 0.38 }} aria-hidden="true">
+      {initials.toUpperCase()}
+    </span>
+  )
+}
+
+/* ---------- Empty-shelf illustration for empty states ---------- */
+export function EmptyShelf() {
+  return (
+    <svg className="empty-art" width="120" height="78" viewBox="0 0 120 78" aria-hidden="true">
+      <rect x="8" y="6" width="104" height="66" rx="6" fill="#F6F7FA" stroke="#CDD2E1" />
+      <path d="M8 30h104M8 52h104" stroke="#CDD2E1" />
+      <rect x="18" y="16" width="10" height="14" rx="2" fill="#E7EAF6" />
+      <rect x="31" y="20" width="8" height="10" rx="2" fill="#E7EAF6" />
+      <rect x="86" y="40" width="14" height="12" rx="2" fill="#FFF4D6" />
+      <circle cx="60" cy="63" r="2" fill="#CDD2E1" /><circle cx="68" cy="63" r="2" fill="#CDD2E1" /><circle cx="52" cy="63" r="2" fill="#CDD2E1" />
+    </svg>
+  )
 }

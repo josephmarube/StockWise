@@ -268,6 +268,69 @@ a.cell-title:hover { text-decoration: underline; }
 .picker-empty { padding: 12px; color: var(--ink-3); }
 .last-saved { display: grid; gap: 10px; padding: 16px; border-radius: var(--r-lg); background: var(--in-soft); border: 1px solid #BFE3CF; }
 
+/* ---------- Charts ---------- */
+.chart { position: relative; }
+.chart-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.legend { list-style: none; display: flex; gap: 18px; margin: 0; padding: 0; font-size: 13.5px; color: var(--ink-2); }
+.legend li { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; }
+.legend b { color: var(--ink); font-weight: 600; }
+.link-btn { border: 0; background: none; color: var(--indigo-2); font-weight: 500; font-size: 13.5px; cursor: pointer; padding: 4px; text-underline-offset: 3px; }
+.link-btn:hover { text-decoration: underline; }
+.chart-plot { position: relative; }
+.chart svg { display: block; overflow: visible; }
+.chart .grid { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.chart .tick { font-size: 11.5px; fill: var(--ink-3); font-feature-settings: 'tnum' 1; }
+.chart .hover-band { fill: var(--paper); }
+.tooltip { position: absolute; top: 4px; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; font-size: 13px; color: var(--ink-2); box-shadow: 0 10px 24px rgba(25,28,39,.12); pointer-events: none; min-width: 130px; display: grid; gap: 3px; }
+.tooltip-title { font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+.tooltip div { display: flex; align-items: center; gap: 6px; }
+.tooltip i { width: 8px; height: 8px; border-radius: 2px; }
+.tooltip b { margin-left: auto; color: var(--ink); }
+.barlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.barlist li.clickable { cursor: pointer; border-radius: 8px; margin: -4px -6px; padding: 4px 6px; }
+.barlist li.clickable:hover { background: var(--paper); }
+.barlist-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 5px; }
+.barlist-label { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barlist-label small { color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+.barlist-top b { font-weight: 600; white-space: nowrap; font-feature-settings: 'tnum' 1; }
+.barlist-track { display: block; height: 8px; border-radius: 99px; background: var(--paper); overflow: hidden; }
+.barlist-track span { display: block; height: 100%; border-radius: 99px; }
+.stack { display: grid; gap: 20px; align-content: start; }
+
+/* ---------- Session tally ---------- */
+.tally-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.tally-figures > div { display: flex; flex-direction: column; padding: 12px; border-radius: var(--r); background: var(--paper); }
+.tally-n { font-family: var(--f-display); font-size: 26px; font-weight: 650; line-height: 1.1; }
+.tally-l { font-size: 13px; color: var(--ink-3); }
+.tally-list { list-style: none; margin: 0; padding: 0; }
+.tally-list li { display: grid; grid-template-columns: 1fr auto 56px; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; }
+.tally-list li + li { border-top: 1px solid var(--line); }
+.tally-list b { text-align: right; font-family: var(--f-display); }
+.title-avatar { align-items: center; }
+
+/* ---------- Password ---------- */
+.pw-input { position: relative; }
+.pw-input input { padding-right: 46px !important; }
+.pw-toggle { position: absolute; right: 4px; top: 50%; translate: 0 -50%; width: 38px; height: 34px; display: grid; place-items: center; border: 0; background: none; color: var(--ink-3); border-radius: var(--r-sm); cursor: pointer; }
+.pw-toggle:hover { color: var(--ink); background: var(--paper); }
+.pw-toggle[aria-pressed="true"] { color: var(--indigo-2); }
+.pw-rules { list-style: none; margin: -6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--ink-3); }
+.pw-rules li { display: inline-flex; align-items: center; gap: 5px; }
+.pw-rules li.ok { color: var(--in); }
+
+/* ---------- Skeletons, avatars, empty art ---------- */
+.skeleton { display: inline-block; background: linear-gradient(90deg, #ECEEF4 0%, #F6F7FA 40%, #ECEEF4 80%); background-size: 300% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+.skeleton-table { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 6px 14px; }
+.skeleton-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
+.skeleton-row + .skeleton-row { border-top: 1px solid var(--line); }
+.skeleton-cell { flex: 1; display: grid; gap: 6px; }
+.avatar { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 10px; font-family: var(--f-display); font-weight: 650; letter-spacing: -0.02em; }
+.with-avatar { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.with-avatar > div { min-width: 0; }
+.empty-art { margin-bottom: 4px; }
+
 /* ---------- Scanning ---------- */
 .picker-row { display: flex; gap: 8px; align-items: stretch; }
 .scan-btn { height: 42px; flex-shrink: 0; }

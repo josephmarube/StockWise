@@ -5,7 +5,7 @@ import { useApi } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
 import { fmtDateFull, fmtMoney, fmtNum } from '../lib/format'
 import ProductForm from '../components/ProductForm'
-import { Confirm, Empty, ErrorNote, Icon, Modal, Pager, SourceTag, Spinner, StockBadge, StockBar, TypeTag, useToast } from '../components/ui'
+import { Confirm, Empty, ErrorNote, Icon, Modal, Pager, ProductAvatar, Skeleton, SkeletonRows, SourceTag, Spinner, StockBadge, StockBar, TypeTag, useToast } from '../components/ui'
 
 const LIMIT = 20
 
@@ -23,7 +23,7 @@ export default function ProductDetail() {
   const [busy, setBusy] = useState(false)
 
   if (prod.error) return <div className="page"><ErrorNote error={prod.error} /><Link to="/products" className="link">Back to products</Link></div>
-  if (!prod.data) return <div className="page"><Spinner /></div>
+  if (!prod.data) return <div className="page"><Skeleton w="40%" h={34} /><Skeleton w="25%" h={16} /><SkeletonRows rows={4} cols={3} /></div>
   const p = prod.data
   const hasHistory = (hist.data?.total || 0) > 0
 
@@ -45,9 +45,12 @@ export default function ProductDetail() {
     <div className="page">
       <Link to="/products" className="back"><Icon name="back" size={18} /> Products</Link>
       <header className="page-head">
-        <div>
+        <div className="with-avatar title-avatar">
+          <ProductAvatar name={p.name} categoryId={p.category.id} size={52} />
+          <div>
           <h1>{p.name}</h1>
           <p className="lede">{p.sku} · {p.category.name}{p.archived && <span className="badge badge-muted">Archived</span>}</p>
+          </div>
         </div>
         <div className="head-actions">
           {!p.archived && <>

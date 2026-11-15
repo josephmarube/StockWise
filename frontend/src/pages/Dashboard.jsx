@@ -1,13 +1,16 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
 import { fmtAgo, fmtMoney, fmtNum } from '../lib/format'
-import { Empty, ErrorNote, Icon, Spinner, StockBar, StockBadge, TypeTag, sourceLabel } from '../components/ui'
+import { Empty, ErrorNote, Icon, ProductAvatar, Skeleton, StockBar, StockBadge, TypeTag, sourceLabel } from '../components/ui'
+import { BarList, TrendChart, money } from '../components/charts'
 
 export default function Dashboard() {
   const { user, isAdmin, business } = useAuth()
   // Poll so changes recorded by other users show up without a manual refresh.
   const { data, error, loading, reload } = useApi('/api/dashboard', null, { poll: 10000 })
+  const trends = useApi('/api/dashboard/trends', { days: 14 }, { poll: 60000 })
+  const nav = useNavigate()
   const first = user.name.split(' ')[0]
 
   return (
@@ -32,7 +35,11 @@ export default function Dashboard() {
       </header>
 
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <Spinner />}
+      {loading && !data && (
+        <div className="figures" aria-label="Loading">
+          {[0, 1, 2, 3].map((i) => <div className="figure" key={i}><Skeleton w="45%" h={26} /><Skeleton w="70%" h={12} style={{ marginTop: 8 }} /></div>)}
+        </div>
+      )}
 
       {data && data.active_products === 0 && data.recent_movements.length === 0 && (
         <section className="panel onboard" aria-labelledby="start-h">
@@ -58,6 +65,13 @@ export default function Dashboard() {
             <div className={`figure ${data.low_stock_count ? 'figure-warn' : ''}`}><span className="figure-n">{fmtNum(data.low_stock_count)}</span><span className="figure-l">at or below reorder level</span></div>
           </section>
 
+          {trends.data && trends.data.days.some((d) => d.qty_in || d.qty_out) && (
+            <section className="panel" aria-labelledby="trend-h">
+              <div className="panel-head"><h2 id="trend-h">Last 14 days</h2></div>
+              <TrendChart days={trends.data.days} />
+            </section>
+          )}
+
           <div className="dash-grid">
             <section className="panel" aria-labelledby="low-h">
               <div className="panel-head">
@@ -72,7 +86,7 @@ export default function Dashboard() {
                     <li key={p.id}>
                       <Link to={`/products/${p.id}`} className="low-item">
                         <div className="low-main">
-                          <span className="low-name">{p.name}</span>
+                          <span className="with-avatar"><ProductAvatar name={p.name} categoryId={p.category.id} size={30} /><span className="low-name">{p.name}</span></span>
                           <StockBadge product={p} />
                         </div>
                         <StockBar product={p} compact />
@@ -87,7 +101,25 @@ export default function Dashboard() {
               )}
             </section>
 
-            <section className="panel" aria-labelledby="recent-h">
+            <div className="stack">
+              <section className="panel" aria-labelledby="movers-h">
+                <div className="panel-head"><h2 id="movers-h">Fastest moving</h2><span className="muted small">units out, 14 days</span></div>
+                {!trends.data ? <Skeleton h={120} /> : trends.data.top_movers.length === 0
+                  ? <Empty title="No sales recorded yet" />
+                  : <BarList items={trends.data.top_movers} value={(m) => m.qty_out} label={(m) => m.name} sub={(m) => m.sku}
+                      onSelect={(m) => nav(`/products/${m.product_id}`)} />}
+              </section>
+              {isAdmin && trends.data?.by_category.length > 0 && (
+                <section className="panel" aria-labelledby="cat-h">
+                  <div className="panel-head"><h2 id="cat-h">Stock value by category</h2></div>
+                  <BarList items={trends.data.by_category} value={(c) => Number(c.value)} label={(c) => c.name}
+                    sub={(c) => `${fmtNum(c.units)} units`} format={money} color="#16794A" />
+                </section>
+              )}
+            </div>
+          </div>
+
+          <section className="panel" aria-labelledby="recent-h">
               <div className="panel-head">
                 <h2 id="recent-h">Latest stock changes</h2>
                 {isAdmin && <Link to="/reports?tab=audit" className="link">Audit log</Link>}
@@ -109,7 +141,6 @@ export default function Dashboard() {
                 </ul>
               )}
             </section>
-          </div>
         </>
       )}
     </div>

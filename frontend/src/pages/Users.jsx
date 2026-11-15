@@ -4,9 +4,8 @@ import { api } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
 import { fmtDate } from '../lib/format'
-import { Confirm, ErrorNote, Field, Icon, Modal, Spinner, useToast } from '../components/ui'
+import { Confirm, ErrorNote, Field, Icon, Modal, NewPasswordFields, Spinner, checkNewPassword, useToast } from '../components/ui'
 
-const TOO_SHORT = 'Use at least 8 characters.'
 
 export default function Users() {
   const { user: me } = useAuth()
@@ -106,7 +105,7 @@ export default function Users() {
 
 function UserForm({ user, isSelf, onClose, onSaved }) {
   const toast = useToast()
-  const [f, setF] = useState({ name: user?.name || '', email: user?.email || '', role: user?.role || 'STAFF', password: '' })
+  const [f, setF] = useState({ name: user?.name || '', email: user?.email || '', role: user?.role || 'STAFF', password: '', confirm: '' })
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
@@ -116,7 +115,7 @@ function UserForm({ user, isSelf, onClose, onSaved }) {
     const errs = {}
     if (!f.name.trim()) errs.name = 'Enter a name.'
     if (!user && !/^\S+@\S+\.\S+$/.test(f.email.trim())) errs.email = 'Enter a valid email address.'
-    if ((!user || f.password) && f.password.length < 8) errs.password = TOO_SHORT
+    Object.assign(errs, checkNewPassword(f.password, f.confirm, { optional: !!user }))
     setErrors(errs)
     if (Object.keys(errs).length) return
     setBusy(true)
@@ -148,9 +147,9 @@ function UserForm({ user, isSelf, onClose, onSaved }) {
             <option value="STAFF">Staff</option><option value="ADMIN">Admin</option>
           </select>
         </Field>
-        <Field label={user ? 'New password' : 'Password'} id="u-pw" error={errors.password} hint={user ? 'Leave blank to keep the current password.' : 'At least 8 characters.'}>
-          <input id="u-pw" type="password" autoComplete="new-password" value={f.password} onChange={set('password')} />
-        </Field>
+        <NewPasswordFields idPrefix="u-pw" label={user ? 'New password (leave blank to keep)' : 'Password'}
+          value={f.password} confirm={f.confirm} onChange={set('password')} onConfirmChange={set('confirm')}
+          errors={errors} optional={!!user} />
         {errors.form && <p className="form-error span-2" role="alert">{errors.form}</p>}
       </form>
     </Modal>

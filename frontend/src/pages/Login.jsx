@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import AuthShell, { Brand } from '../components/AuthShell'
-import { Field } from '../components/ui'
+import { Field, PasswordInput } from '../components/ui'
 
 export default function Login() {
   const { user, login, notice } = useAuth()
@@ -42,7 +42,7 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)} inputMode="email" />
         </Field>
         <Field label="Password" id="password">
-          <input id="password" type="password" autoComplete="current-password" value={password}
+          <PasswordInput id="password" autoComplete="current-password" value={password}
             onChange={(e) => setPassword(e.target.value)} />
         </Field>
         {error && <p className="form-error" role="alert">{error}</p>}

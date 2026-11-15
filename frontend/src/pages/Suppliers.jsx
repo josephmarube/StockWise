@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useApi, useDebounced } from '../lib/hooks'
-import { Confirm, Empty, ErrorNote, Field, Icon, Modal, Spinner, useToast } from '../components/ui'
+import { Confirm, Empty, ErrorNote, Field, Icon, Modal, SkeletonRows, useToast } from '../components/ui'
 
 export default function Suppliers() {
   const toast = useToast()
@@ -39,9 +39,9 @@ export default function Suppliers() {
         </div>
       </div>
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <Spinner />}
+      {loading && !data && <SkeletonRows rows={5} cols={3} />}
       {data?.length === 0 && (
-        <Empty title={dq ? 'No suppliers match your search' : 'No suppliers yet'}
+        <Empty art title={dq ? 'No suppliers match your search' : 'No suppliers yet'}
           action={!dq && <button className="btn btn-primary" onClick={() => setEditing('new')}>Add a supplier</button>}>
           {!dq && 'Add the businesses you buy stock from, then link them to products.'}
         </Empty>

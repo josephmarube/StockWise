@@ -4,7 +4,7 @@ import { useApi, useDebounced } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
 import { fmtMoney, fmtNum } from '../lib/format'
 import ProductForm from '../components/ProductForm'
-import { Empty, ErrorNote, Icon, Pager, Spinner, StockBadge, StockBar } from '../components/ui'
+import { Empty, ErrorNote, Icon, Pager, ProductAvatar, SkeletonRows, StockBadge, StockBar } from '../components/ui'
 
 const LIMIT = 25
 
@@ -72,10 +72,10 @@ export default function Products() {
       </div>
 
       <ErrorNote error={error} onRetry={reload} />
-      {loading && !data && <Spinner />}
+      {loading && !data && <SkeletonRows rows={8} cols={4} />}
 
       {data && data.items.length === 0 && (
-        <Empty title={dq || category || low ? 'No products match these filters' : view === 'archived' ? 'No archived products' : 'No products yet'}
+        <Empty art title={dq || category || low ? 'No products match these filters' : view === 'archived' ? 'No archived products' : 'No products yet'}
           action={isAdmin && !dq && !category && !low && view !== 'archived' && <button className="btn btn-primary" onClick={() => setAdding(true)}>Add your first product</button>}>
           {dq || category || low ? 'Try a different search or clear the filters.' : null}
         </Empty>
@@ -97,8 +97,13 @@ export default function Products() {
               {data.items.map((p) => (
                 <tr key={p.id} className={`row-link ${p.archived ? 'is-archived' : ''}`} onClick={() => nav(`/products/${p.id}`)}>
                   <td>
-                    <Link to={`/products/${p.id}`} className="cell-title" onClick={(e) => e.stopPropagation()}>{p.name}</Link>
-                    <span className="cell-sub">{p.sku}{p.archived ? ' · archived' : ''}</span>
+                    <div className="with-avatar">
+                      <ProductAvatar name={p.name} categoryId={p.category.id} />
+                      <div>
+                        <Link to={`/products/${p.id}`} className="cell-title" onClick={(e) => e.stopPropagation()}>{p.name}</Link>
+                        <span className="cell-sub">{p.sku}{p.archived ? ' · archived' : ''}</span>
+                      </div>
+                    </div>
                   </td>
                   <td className="hide-sm">{p.category.name}</td>
                   <td className="num hide-sm">{fmtMoney(p.unit_price)}</td>

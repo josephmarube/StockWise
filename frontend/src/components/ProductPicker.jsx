@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 import { useDebounced } from '../lib/hooks'
 import { fmtNum, stockState } from '../lib/format'
 import BarcodeScanner from './BarcodeScanner'
-import { Icon } from './ui'
+import { Icon, ProductAvatar } from './ui'
 
 // USB/Bluetooth scanners "type" the barcode very fast and press Enter.
 // Keys arriving faster than this (on average) are treated as a scanner.
@@ -101,10 +101,10 @@ export default function ProductPicker({ value, onChange, error, autoFocus, input
   if (value && !open && !notFound) {
     return (
       <div className="picked">
-        <div>
+        <div className="with-avatar"><ProductAvatar name={value.name} categoryId={value.category?.id || 0} /><div>
           <div className="picked-name">{value.name}</div>
           <div className="picked-meta">{value.sku} · {fmtNum(value.current_stock)} in stock</div>
-        </div>
+        </div></div>
         <button type="button" className="btn btn-ghost btn-sm"
           onClick={() => { setOpen(true); setTimeout(() => searchRef.current?.focus(), 0) }}>Change</button>
       </div>
@@ -146,7 +146,7 @@ export default function ProductPicker({ value, onChange, error, autoFocus, input
             <li key={p.id} role="option" aria-selected={i === active}
               className={`picker-opt ${i === active ? 'is-active' : ''}`}
               onMouseDown={(e) => { e.preventDefault(); pick(p) }} onMouseEnter={() => setActive(i)}>
-              <span className="picker-name">{p.name}<small>{p.sku}</small></span>
+              <span className="with-avatar"><ProductAvatar name={p.name} categoryId={p.category.id} size={30} /><span className="picker-name">{p.name}<small>{p.sku}</small></span></span>
               <span className={`picker-stock stock-txt-${stockState(p)}`}>{fmtNum(p.current_stock)}</span>
             </li>
           ))}

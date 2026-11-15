@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { fmtNum } from '../lib/format'
+import { fmtMoney, fmtNum } from '../lib/format'
 import ProductPicker from '../components/ProductPicker'
-import { Confirm, Field, Icon, StockBar, useToast } from '../components/ui'
+import { Confirm, Field, Icon, ProductAvatar, StockBar, TypeTag, useToast } from '../components/ui'
 
 export default function RecordStock() {
   const [params] = useSearchParams()
@@ -19,6 +19,7 @@ export default function RecordStock() {
   const [shortfall, setShortfall] = useState(null) // 409 details
   const [last, setLast] = useState(null)
   const [source, setSource] = useState('MANUAL') // how the product was chosen (FR7.2)
+  const [session, setSession] = useState([]) // entries recorded on this screen, newest first
   const pickerRef = useRef(null)
   const qtyRef = useRef(null)
 
@@ -56,6 +57,7 @@ export default function RecordStock() {
         product_id: product.id, type, quantity: n, note: note.trim() || null, override, source,
       })
       setLast({ ...res, product })
+      setSession((xs) => [{ id: res.movement.id, type, qty: n, product, value: n * Number(product.unit_price), source }, ...xs])
       setQty('1'); setNote(''); setShortfall(null)
       if (source === 'MANUAL') {
         setProduct({ ...product, current_stock: res.current_stock })
@@ -134,6 +136,8 @@ export default function RecordStock() {
         </button>
       </form>
 
+      {session.length > 0 && <SessionTally entries={session} />}
+
       {last && (
         <div className="last-saved">
           <div>
@@ -167,4 +171,30 @@ function mapFields(f = {}) {
   if (f.quantity) out.qty = f.quantity
   if (f.product_id) out.product = f.product_id
   return out
+}
+
+
+// Running total of what was recorded on this screen, so a cashier can check a batch at a glance.
+function SessionTally({ entries }) {
+  const out = entries.filter((e) => e.type === 'OUT')
+  const inn = entries.filter((e) => e.type === 'IN')
+  const sum = (xs, k) => xs.reduce((a, e) => a + e[k], 0)
+  return (
+    <section className="panel tally" aria-labelledby="tally-h">
+      <div className="panel-head"><h2 id="tally-h">This session</h2><span className="muted small">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span></div>
+      <div className="tally-figures">
+        <div><span className="tally-n">{fmtNum(sum(out, 'qty'))}</span><span className="tally-l">units out · {fmtMoney(sum(out, 'value'))}</span></div>
+        <div><span className="tally-n qty-in">{fmtNum(sum(inn, 'qty'))}</span><span className="tally-l">units in</span></div>
+      </div>
+      <ul className="tally-list">
+        {entries.slice(0, 5).map((e) => (
+          <li key={e.id}>
+            <span className="with-avatar"><ProductAvatar name={e.product.name} categoryId={e.product.category?.id || 0} size={26} />{e.product.name}</span>
+            <TypeTag type={e.type} />
+            <b className={e.type === 'IN' ? 'qty-in' : ''}>{e.type === 'IN' ? '+' : '−'}{fmtNum(e.qty)}</b>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
 }

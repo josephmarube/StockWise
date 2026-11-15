@@ -3,9 +3,8 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import AuthShell, { Brand } from '../components/AuthShell'
-import { Field, Spinner } from '../components/ui'
+import { Field, NewPasswordFields, Spinner, checkNewPassword } from '../components/ui'
 
-const TOO_SHORT = 'Use at least 8 characters.'
 
 // Opened from an invite link: /join/<token>. Creates the member's account in that business.
 export default function Join() {
@@ -14,7 +13,7 @@ export default function Join() {
   const nav = useNavigate()
   const [invite, setInvite] = useState(null)
   const [loadError, setLoadError] = useState('')
-  const [f, setF] = useState({ name: '', email: '', password: '' })
+  const [f, setF] = useState({ name: '', email: '', password: '', confirm: '' })
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
@@ -44,7 +43,7 @@ export default function Join() {
     const errs = {}
     if (!f.name.trim()) errs.name = 'Enter your name.'
     if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) errs.email = 'Enter a valid email address.'
-    if (f.password.length < 8) errs.password = TOO_SHORT
+    Object.assign(errs, checkNewPassword(f.password, f.confirm))
     setErrors(errs)
     if (Object.keys(errs).length) return
     setBusy(true)
@@ -87,9 +86,8 @@ export default function Join() {
         <Field label="Email" id="j-email" error={errors.email} hint={invite.email ? 'This invite is for this email address.' : undefined}>
           <input id="j-email" type="email" value={f.email} onChange={set('email')} autoComplete="email" readOnly={!!invite.email} inputMode="email" />
         </Field>
-        <Field label="Password" id="j-pw" error={errors.password} hint="At least 8 characters.">
-          <input id="j-pw" type="password" value={f.password} onChange={set('password')} autoComplete="new-password" />
-        </Field>
+        <NewPasswordFields idPrefix="j-pw" value={f.password} confirm={f.confirm}
+          onChange={set('password')} onConfirmChange={set('confirm')} errors={errors} />
         {errors.form && <p className="form-error" role="alert">{errors.form}</p>}
         <button className="btn btn-primary btn-block btn-lg" disabled={busy}>{busy ? 'Joining…' : `Join ${invite.business_name}`}</button>
       </form>

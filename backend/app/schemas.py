@@ -1,6 +1,6 @@
 """Pydantic request/response models. Server-side validation for NFR8."""
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated
 
@@ -349,6 +349,31 @@ class DashboardSummary(BaseModel):
     out_of_stock_count: int
     low_stock: list[ProductOut]
     recent_movements: list[MovementOut]
+
+
+class DayTotals(BaseModel):
+    date: date
+    qty_in: int
+    qty_out: int
+
+
+class TopMover(BaseModel):
+    product_id: int
+    name: str
+    sku: str
+    qty_out: int
+
+
+class CategoryValue(BaseModel):
+    name: str
+    value: Decimal
+    units: int
+
+
+class DashboardTrends(BaseModel):
+    days: list[DayTotals]
+    top_movers: list[TopMover]
+    by_category: list[CategoryValue]  # admins only (stock value)
 
 
 class StockReportRow(BaseModel):
