@@ -13,13 +13,19 @@ import Suppliers from './pages/Suppliers'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
 import More from './pages/More'
+import Activity from './pages/Activity'
+import Platform from './pages/Platform'
+import PlatformLayout from './components/PlatformLayout'
 
-function RequireAuth({ children, admin }) {
-  const { user, ready, isAdmin } = useAuth()
+// area: 'shop' (Managers and Staff) or 'platform' (System Admins). admin: Managers only.
+function RequireAuth({ children, admin, area = 'shop' }) {
+  const { user, ready, isManager, isSystemAdmin } = useAuth()
   const loc = useLocation()
   if (!ready) return <div className="center-screen"><Spinner /></div>
   if (!user) return <Navigate to="/login" state={{ from: loc.pathname + loc.search }} replace />
-  if (admin && !isAdmin) return <Navigate to="/" replace />
+  if (area === 'shop' && isSystemAdmin) return <Navigate to="/platform" replace />
+  if (area === 'platform' && !isSystemAdmin) return <Navigate to="/" replace />
+  if (admin && !isManager) return <Navigate to="/" replace />
   return children
 }
 
@@ -29,6 +35,10 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/join/:token" element={<Join />} />
+      <Route path="/platform" element={<RequireAuth area="platform"><PlatformLayout /></RequireAuth>}>
+        <Route index element={<Platform />} />
+        <Route path="activity" element={<Platform tab="activity" />} />
+      </Route>
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Dashboard />} />
         <Route path="record" element={<RecordStock />} />
@@ -38,6 +48,7 @@ export default function App() {
         <Route path="reports" element={<RequireAuth admin><Reports /></RequireAuth>} />
         <Route path="users" element={<RequireAuth admin><Users /></RequireAuth>} />
         <Route path="more" element={<RequireAuth admin><More /></RequireAuth>} />
+        <Route path="activity" element={<RequireAuth admin><Activity /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

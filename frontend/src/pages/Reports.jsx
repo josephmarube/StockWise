@@ -150,7 +150,7 @@ function AuditLog({ start, end }) {
                 {data.items.map((m) => (
                   <tr key={m.id}>
                     <td className="nowrap">{fmtDateFull(m.created_at)}</td>
-                    <td className="nowrap">{m.user.name}<span className="cell-sub">{m.user.role === 'ADMIN' ? 'Admin' : 'Staff'}</span></td>
+                    <td className="nowrap">{m.user.name}<span className="cell-sub">{m.user.role === 'MANAGER' ? 'Manager' : 'Staff'}</span></td>
                     <td><span className="cell-title">{m.product.name}</span><span className="cell-sub">{m.product.sku}</span></td>
                     <td><TypeTag type={m.type} override={m.override} /></td>
                     <td><SourceTag source={m.source} always /></td>

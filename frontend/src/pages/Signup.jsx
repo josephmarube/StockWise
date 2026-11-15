@@ -5,7 +5,7 @@ import AuthShell, { Brand } from '../components/AuthShell'
 import { Field, NewPasswordFields, checkNewPassword } from '../components/ui'
 
 
-// Creates a new business with the person signing up as its admin.
+// Creates a new business with the person signing up as its manager.
 export default function Signup() {
   const { user, signup } = useAuth()
   const nav = useNavigate()
@@ -44,7 +44,7 @@ export default function Signup() {
         <Brand />
         <div>
           <h1>Create your business</h1>
-          <p className="login-sub">You'll be its admin. It takes under a minute.</p>
+          <p className="login-sub">You'll be its manager. It takes under a minute.</p>
         </div>
         <Field label="Business name" id="s-biz" error={errors.business_name} hint="For example: Mama Njeri Duka">
           <input id="s-biz" value={f.business_name} onChange={set('business_name')} maxLength={120} autoComplete="organization" />
@@ -60,7 +60,7 @@ export default function Signup() {
         {errors.form && <p className="form-error" role="alert">{errors.form}</p>}
         <button className="btn btn-primary btn-block btn-lg" disabled={busy}>{busy ? 'Creating…' : 'Create business'}</button>
         <p className="login-switch">Already have an account? <Link to="/login" className="link">Log in</Link></p>
-        <p className="login-help">Joining an existing shop? Ask its admin for an invite link.</p>
+        <p className="login-help">Joining an existing shop? Ask its manager for an invite link.</p>
       </form>
     </AuthShell>
   )

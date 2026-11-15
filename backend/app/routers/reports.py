@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import selectinload
 
-from ..deps import AdminUser, DbSession
+from ..deps import ManagerUser, DbSession
 from ..models import Category, MovementSource, MovementType, Product, StockMovement
 from ..schemas import MovementOut, MovementPage, StockReport, StockReportRow
 from ..timeutil import local_date_range_to_utc, to_local, today_local
@@ -106,7 +106,7 @@ def _movements_stmt(business_id, lo, hi, product_id=None, user_id=None, type_=No
 @router.get("/stock", response_model=StockReport)
 def stock_report(
     db: DbSession,
-    admin: AdminUser,
+    admin: ManagerUser,
     start: date | None = None,
     end: date | None = None,
     include_archived: bool = False,
@@ -138,7 +138,7 @@ def stock_report(
 @router.get("/audit", response_model=MovementPage)
 def audit_log(
     db: DbSession,
-    admin: AdminUser,
+    admin: ManagerUser,
     start: date | None = None,
     end: date | None = None,
     user_id: int | None = None,
@@ -200,7 +200,7 @@ def _fmt_local(dt: datetime) -> str:
 @router.get("/stock.csv")
 def export_stock_csv(
     db: DbSession,
-    admin: AdminUser,
+    admin: ManagerUser,
     start: date | None = None,
     end: date | None = None,
     include_archived: bool = False,
@@ -229,7 +229,7 @@ def export_stock_csv(
 @router.get("/movements.csv")
 def export_movements_csv(
     db: DbSession,
-    admin: AdminUser,
+    admin: ManagerUser,
     start: date | None = None,
     end: date | None = None,
     user_id: int | None = None,

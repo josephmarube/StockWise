@@ -71,7 +71,7 @@ export default function Join() {
     )
   }
 
-  const roleLabel = invite.role === 'ADMIN' ? 'an admin' : 'staff'
+  const roleLabel = invite.role === 'MANAGER' ? 'a manager' : 'staff'
   return (
     <AuthShell tagline={`Join ${invite.business_name} on StockWise.`}>
       <form className="login-form" onSubmit={submit} noValidate>

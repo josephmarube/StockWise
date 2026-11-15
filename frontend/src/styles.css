@@ -491,3 +491,32 @@ section > .table-scroll { margin-bottom: 12px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- Activity log ---------- */
+.page-head .muted { margin-top: 4px; max-width: 70ch; }
+.chips[role="group"] { margin-bottom: 16px; }
+.activity { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.activity > li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 14px 16px; }
+.activity > li + li { border-top: 1px solid var(--line); }
+.activity > li.is-platform { background: #FFF9EB; }
+.activity-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--paper); color: var(--ink-2); }
+.is-platform .activity-icon { background: var(--low-soft); color: var(--low-ink); }
+.activity-summary { margin: 0; font-weight: 500; }
+.activity-meta { margin: 2px 0 0; font-size: 13px; color: var(--ink-3); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
+.badge-platform { background: var(--low-soft); color: var(--low-ink); margin-right: 4px; }
+.changes { margin-top: 10px; border-collapse: collapse; font-size: 13.5px; width: 100%; max-width: 620px; table-layout: fixed; }
+.changes th:first-child { width: 120px; }
+.changes th, .changes td { text-align: left; padding: 5px 10px 5px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.changes thead th { border-top: 0; font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.changes tbody th { font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.changes .before { color: var(--ink-3); text-decoration: line-through; text-decoration-color: rgba(0,0,0,.25); }
+.changes .after { color: var(--ink); font-weight: 500; }
+
+/* ---------- Business card (read-only) and System Admin ---------- */
+.business-card { align-items: center; justify-content: space-between; }
+.business-name { font-family: var(--f-display); font-size: 20px; font-weight: 650; }
+.business-card p { margin: 0; max-width: 46ch; }
+.side-platform { display: flex; align-items: center; gap: 8px; color: #FFD979; }
+.toolbar-search { margin: 18px 0 14px; max-width: 360px; }
+.badge-ok { background: var(--in-soft); color: var(--in); }
+.stack-form { display: grid; gap: 14px; }

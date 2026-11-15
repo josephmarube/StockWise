@@ -82,7 +82,7 @@ def record_movement(
 
         used_override = False
         if type_ == MovementType.OUT and product.current_stock - quantity < 0:
-            is_admin = user.role == Role.ADMIN
+            is_admin = user.role == Role.MANAGER
             if not (is_admin and override):
                 raise InsufficientStock(
                     f"Insufficient stock: {product.current_stock} available, {quantity} requested",

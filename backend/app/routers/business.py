@@ -1,8 +1,8 @@
 """The signed-in user's business (workspace) settings."""
 from fastapi import APIRouter
 
-from ..deps import AdminUser, CurrentUser, DbSession
-from ..schemas import BusinessOut, BusinessUpdate
+from ..deps import CurrentUser
+from ..schemas import BusinessOut
 
 router = APIRouter(prefix="/api/business", tags=["business"])
 
@@ -12,8 +12,5 @@ def get_business(user: CurrentUser):
     return user.business
 
 
-@router.patch("", response_model=BusinessOut)
-def rename_business(body: BusinessUpdate, db: DbSession, admin: AdminUser):
-    admin.business.name = body.name
-    db.commit()
-    return admin.business
+# Renaming a business is a System Admin action (PATCH /api/platform/businesses/{id}),
+# so a business's name can't be changed to impersonate another shop.

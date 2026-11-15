@@ -12,7 +12,7 @@ const SCANNER_MS_PER_KEY = 35
 
 // Searchable product picker: type a name/SKU, scan with a USB scanner, or scan with the camera (FR2.5).
 // onChange(product, source) where source is MANUAL, SCANNER or CAMERA.
-export default function ProductPicker({ value, onChange, error, autoFocus, inputRef, isAdmin }) {
+export default function ProductPicker({ value, onChange, error, autoFocus, inputRef, isManager }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState({ q: null, items: [] })
@@ -132,9 +132,9 @@ export default function ProductPicker({ value, onChange, error, autoFocus, input
       {notFound && (
         <div className="not-found" role="alert">
           <span>No product has barcode <strong>{notFound}</strong>.</span>
-          {isAdmin
+          {isManager
             ? <Link className="link" to={`/products?new=1&barcode=${encodeURIComponent(notFound)}`}>Add it as a new product</Link>
-            : <span className="muted">Ask an admin to add it.</span>}
+            : <span className="muted">Ask a manager to add it.</span>}
         </div>
       )}
 

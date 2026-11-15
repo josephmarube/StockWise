@@ -113,7 +113,7 @@ class TestCannotChangeOtherBusiness:
 
     def test_edit_or_disable_other_business_user(self, client, other_h, admin_h):
         staff = [u for u in client.get("/api/users", headers=admin_h).json() if u["role"] == "STAFF"][0]
-        for body in ({"is_active": False}, {"role": "ADMIN"}, {"password": new_password()}):
+        for body in ({"is_active": False}, {"role": "MANAGER"}, {"password": new_password()}):
             assert client.patch(f"/api/users/{staff['id']}", headers=other_h, json=body).status_code == 404
         assert client.post("/api/auth/login", json=STAFF).status_code == 200
 

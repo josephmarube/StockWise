@@ -8,7 +8,7 @@ import { Confirm, Field, Icon, ProductAvatar, StockBar, TypeTag, useToast } from
 
 export default function RecordStock() {
   const [params] = useSearchParams()
-  const { isAdmin } = useAuth()
+  const { isManager } = useAuth()
   const toast = useToast()
   const [type, setType] = useState(params.get('type') === 'IN' ? 'IN' : 'OUT')
   const [product, setProduct] = useState(null)
@@ -102,7 +102,7 @@ export default function RecordStock() {
 
         <Field label="Product" id="product" error={errors.product}>
           <ProductPicker value={product} onChange={choose} error={errors.product} autoFocus={!params.get('product')}
-            inputRef={pickerRef} isAdmin={isAdmin} />
+            inputRef={pickerRef} isManager={isManager} />
         </Field>
 
         <Field label="Quantity" id="qty" error={errors.qty}>
@@ -148,7 +148,7 @@ export default function RecordStock() {
         </div>
       )}
 
-      {shortfall && (isAdmin ? (
+      {shortfall && (isManager ? (
         <Confirm title="Not enough stock" confirmLabel="Record anyway" busy={busy}
           onCancel={() => setShortfall(null)} onConfirm={() => save(true)}>
           <p>{product.name} has <strong>{fmtNum(shortfall.available)}</strong> in stock, but you are removing <strong>{fmtNum(shortfall.requested)}</strong>.
@@ -159,7 +159,7 @@ export default function RecordStock() {
         <Confirm title="Not enough stock" confirmLabel="OK" tone="primary"
           onCancel={() => setShortfall(null)} onConfirm={() => setShortfall(null)}>
           <p>{product.name} has only <strong>{fmtNum(shortfall.available)}</strong> in stock, so {fmtNum(shortfall.requested)} cannot be removed. Nothing was saved.</p>
-          <p>If the shelf count is different, ask an admin to record this stock out.</p>
+          <p>If the shelf count is different, ask a manager to record this stock out.</p>
         </Confirm>
       ))}
     </div>

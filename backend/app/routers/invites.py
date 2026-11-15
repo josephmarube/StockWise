@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..deps import AdminUser, DbSession
+from ..activity import ROLE_LABELS, record
+from ..deps import ManagerUser, DbSession
 from ..models import Invite, User, utcnow
 from ..ratelimit import limit
 from ..schemas import InviteAccept, InviteCreate, InviteCreated, InviteOut, InvitePreview, TokenResponse
@@ -21,7 +22,7 @@ from .users import EMAIL_TAKEN, email_taken
 
 router = APIRouter(prefix="/api/invites", tags=["invites"])
 
-INVALID = "This invite link is invalid, expired or already used. Ask your admin for a new one."
+INVALID = "This invite link is invalid, expired or already used. Ask your manager for a new one."
 
 
 def _hash(token: str) -> str:
@@ -38,7 +39,7 @@ def _find_usable(db, token: str) -> Invite:
 
 
 @router.post("", response_model=InviteCreated, status_code=status.HTTP_201_CREATED)
-def create_invite(body: InviteCreate, db: DbSession, admin: AdminUser):
+def create_invite(body: InviteCreate, db: DbSession, admin: ManagerUser):
     if body.email and email_taken(db, body.email):
         raise HTTPException(status.HTTP_409_CONFLICT, EMAIL_TAKEN)
     token = secrets.token_urlsafe(32)
@@ -51,13 +52,17 @@ def create_invite(body: InviteCreate, db: DbSession, admin: AdminUser):
         expires_at=utcnow() + timedelta(days=body.days_valid),
     )
     db.add(inv)
+    db.flush()
+    who = f" for {inv.email}" if inv.email else ""
+    record(db, admin, "invite.created", "invite", inv.id,
+           f"Created a {ROLE_LABELS[inv.role.value]} invite link{who}")
     db.commit()
     db.refresh(inv)
     return InviteCreated.model_validate({**InviteOut.model_validate(inv).model_dump(), "token": token})
 
 
 @router.get("", response_model=list[InviteOut])
-def list_pending(db: DbSession, admin: AdminUser):
+def list_pending(db: DbSession, admin: ManagerUser):
     now = utcnow()
     return db.execute(
         select(Invite)
@@ -73,12 +78,13 @@ def list_pending(db: DbSession, admin: AdminUser):
 
 
 @router.delete("/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
-def revoke(invite_id: int, db: DbSession, admin: AdminUser):
+def revoke(invite_id: int, db: DbSession, admin: ManagerUser):
     inv = db.get(Invite, invite_id)
     if inv is None or inv.business_id != admin.business_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invite not found")
     if inv.revoked_at is None and inv.accepted_at is None:
         inv.revoked_at = utcnow()
+        record(db, admin, "invite.revoked", "invite", inv.id, "Cancelled an invite link")
         db.commit()
 
 
@@ -118,6 +124,9 @@ def accept(body: InviteAccept, db: DbSession):
     )
     inv.accepted_at = utcnow()
     db.add(user)
+    db.flush()
+    record(db, user, "user.joined", "user", user.id,
+           f"{user.name} joined as {ROLE_LABELS[user.role.value]} using an invite link")
     db.commit()
     db.refresh(user)
     return issue_token(user)

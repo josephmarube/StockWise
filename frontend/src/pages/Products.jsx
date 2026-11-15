@@ -9,7 +9,7 @@ import { Empty, ErrorNote, Icon, Pager, ProductAvatar, SkeletonRows, StockBadge,
 const LIMIT = 25
 
 export default function Products() {
-  const { isAdmin } = useAuth()
+  const { isManager } = useAuth()
   const nav = useNavigate()
   const [sp, setSp] = useSearchParams()
   const [q, setQ] = useState(sp.get('q') || '')
@@ -40,7 +40,7 @@ export default function Products() {
     <div className="page">
       <header className="page-head">
         <h1>Products</h1>
-        {isAdmin && <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" size={18} /> Add product</button>}
+        {isManager && <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" size={18} /> Add product</button>}
       </header>
 
       <div className="toolbar">
@@ -63,7 +63,7 @@ export default function Products() {
           <input type="checkbox" checked={low} onChange={(e) => setParam('low', e.target.checked ? '1' : '')} />
           Low stock only
         </label>
-        {isAdmin && (
+        {isManager && (
           <label className="toggle">
             <input type="checkbox" checked={view === 'archived'} onChange={(e) => setParam('view', e.target.checked ? 'archived' : '')} />
             Archived
@@ -76,7 +76,7 @@ export default function Products() {
 
       {data && data.items.length === 0 && (
         <Empty art title={dq || category || low ? 'No products match these filters' : view === 'archived' ? 'No archived products' : 'No products yet'}
-          action={isAdmin && !dq && !category && !low && view !== 'archived' && <button className="btn btn-primary" onClick={() => setAdding(true)}>Add your first product</button>}>
+          action={isManager && !dq && !category && !low && view !== 'archived' && <button className="btn btn-primary" onClick={() => setAdding(true)}>Add your first product</button>}>
           {dq || category || low ? 'Try a different search or clear the filters.' : null}
         </Empty>
       )}
@@ -120,7 +120,7 @@ export default function Products() {
         </>
       )}
 
-      {adding && isAdmin && (
+      {adding && isManager && (
         <ProductForm initialBarcode={prefillBarcode}
           onClose={() => {
             setAdding(false)

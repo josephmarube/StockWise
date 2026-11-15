@@ -26,7 +26,7 @@ class TestFR4Auth:
         assert r.status_code == 200
         body = r.json()
         claims = jwt.decode(body["access_token"], TEST_JWT_SECRET, algorithms=["HS256"])
-        assert claims["role"] == "ADMIN" and "exp" in claims
+        assert claims["role"] == "MANAGER" and "exp" in claims
         assert body["user"]["email"] == ADMIN["email"]
 
     @pytest.mark.parametrize(
@@ -91,7 +91,7 @@ class TestFR4Auth:
 
     def test_demoted_admin_loses_access_immediately(self, client, admin_h):
         # create a second admin, log in as them, demote them, old token no longer admin
-        client.post("/api/users", headers=admin_h, json={"name": "B", "email": "b@shop.co.ke", "password": PW, "role": "ADMIN"})
+        client.post("/api/users", headers=admin_h, json={"name": "B", "email": "b@shop.co.ke", "password": PW, "role": "MANAGER"})
         bh = {"Authorization": "Bearer " + client.post("/api/auth/login", json={"email": "b@shop.co.ke", "password": PW}).json()["access_token"]}
         assert client.get("/api/users", headers=bh).status_code == 200
         uid = [u for u in client.get("/api/users", headers=admin_h).json() if u["email"] == "b@shop.co.ke"][0]["id"]

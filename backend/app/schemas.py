@@ -49,6 +49,13 @@ class SignupRequest(BaseModel):
     _s = field_validator("business_name", "name")(_strip)
 
 
+def _business_role(v):
+    """Shop accounts are Manager or Staff. System Admins are only made by the server command."""
+    if v is not None and Role(v) == Role.SYSTEM_ADMIN:
+        raise ValueError("Choose Manager or Staff")
+    return v
+
+
 # ---------- Business ----------
 class BusinessOut(ORM):
     id: int
@@ -67,6 +74,8 @@ class InviteCreate(BaseModel):
     role: Role = Role.STAFF
     email: EmailStr | None = None  # if set, only this email can accept
     days_valid: int = Field(default=7, ge=1, le=30)
+
+    _r = field_validator("role")(_business_role)
 
     @field_validator("email", mode="before")
     @classmethod
@@ -114,7 +123,7 @@ class UserOut(ORM):
 
 
 class MeOut(UserOut):
-    business: BusinessOut
+    business: BusinessOut | None  # None for a System Admin
 
 
 class UserCreate(BaseModel):
@@ -124,6 +133,7 @@ class UserCreate(BaseModel):
     role: Role = Role.STAFF
 
     _s = field_validator("name")(_strip)
+    _r = field_validator("role")(_business_role)
 
 
 class UserUpdate(BaseModel):
@@ -131,6 +141,56 @@ class UserUpdate(BaseModel):
     role: Role | None = None
     is_active: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
+
+    _r = field_validator("role")(_business_role)
+
+
+# ---------- Activity log ----------
+class ActivityOut(ORM):
+    id: int
+    actor_name: str
+    actor_role: str
+    action: str
+    entity_type: str
+    entity_id: int | None
+    summary: str
+    changes: dict | None
+    created_at: UTCDateTime
+    business_name: str | None = None
+
+
+class ActivityPage(BaseModel):
+    items: list[ActivityOut]
+    total: int
+
+
+# ---------- Platform (System Admin) ----------
+class PlatformBusiness(BaseModel):
+    """Metadata only: counts and dates, never the business's products, prices or stock."""
+    id: int
+    name: str
+    is_active: bool
+    created_at: UTCDateTime
+    managers: int
+    staff: int
+    products: int
+    movements_30d: int
+    last_activity: UTCDateTime | None
+
+
+class PlatformBusinessUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    is_active: bool | None = None
+    reason: str | None = Field(default=None, max_length=255)  # shown to the business in its activity log
+
+    _s = field_validator("name")(_strip)
+
+
+class PlatformSummary(BaseModel):
+    businesses: int
+    active_businesses: int
+    users: int
+    new_businesses_30d: int
 
 
 # ---------- Categories ----------

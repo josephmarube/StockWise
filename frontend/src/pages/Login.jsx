@@ -47,7 +47,7 @@ export default function Login() {
         </Field>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn btn-primary btn-block btn-lg" disabled={busy}>{busy ? 'Logging in…' : 'Log in'}</button>
-        <p className="login-help">Forgot your password? Ask your shop admin to reset it.</p>
+        <p className="login-help">Forgot your password? Ask your shop manager to reset it.</p>
         <p className="login-switch">New to StockWise? <Link to="/signup" className="link">Create an account for your business</Link></p>
       </form>
     </AuthShell>

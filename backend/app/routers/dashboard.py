@@ -111,5 +111,5 @@ def trends(db: DbSession, user: CurrentUser, days: int = Query(default=14, ge=7,
     return DashboardTrends(
         days=[DayTotals(date=d, qty_in=v[0], qty_out=v[1]) for d, v in per_day.items()],
         top_movers=top,
-        by_category=by_category if user.role == Role.ADMIN else [],
+        by_category=by_category if user.role == Role.MANAGER else [],
     )

@@ -44,7 +44,8 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => ({
     user, ready, login, signup, acceptInvite, logout, notice, setBusiness,
-    isAdmin: user?.role === 'ADMIN',
+    isManager: user?.role === 'MANAGER',
+    isSystemAdmin: user?.role === 'SYSTEM_ADMIN',
     business: user?.business,
   }), [user, ready, login, signup, acceptInvite, logout, notice, setBusiness])
 

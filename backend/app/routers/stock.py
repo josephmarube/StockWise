@@ -78,7 +78,7 @@ def list_movements(
         .options(selectinload(StockMovement.product), selectinload(StockMovement.user))
         .where(StockMovement.business_id == user.business_id)
     )
-    if user.role != Role.ADMIN:
+    if user.role != Role.MANAGER:
         stmt = stmt.join(Product).where(Product.archived.is_(False))
     if product_id:
         stmt = stmt.where(StockMovement.product_id == product_id)

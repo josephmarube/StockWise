@@ -9,7 +9,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
-from ..deps import AdminUser, CurrentUser, DbSession
+from ..activity import diff, record
+from ..deps import ManagerUser, CurrentUser, DbSession
 from ..models import (
     Category,
     MovementType,
@@ -112,6 +113,19 @@ def _sku_taken(db, sku: str, user: User, exclude_id: int | None = None) -> bool:
     return db.execute(q).first() is not None
 
 
+def _state(p: Product) -> dict:
+    """The fields shown in the activity log for a product."""
+    return {
+        "sku": p.sku,
+        "name": p.name,
+        "category": p.category.name if p.category else None,
+        "unit_price": str(p.unit_price),
+        "reorder_threshold": p.reorder_threshold,
+        "barcodes": sorted(b.code for b in p.barcodes),
+        "suppliers": sorted(s.name for s in p.suppliers),
+    }
+
+
 @router.get("", response_model=ProductPage)
 def list_products(
     db: DbSession,
@@ -130,7 +144,7 @@ def list_products(
     stmt = select(Product).options(*LOAD_OPTS).where(Product.business_id == user.business_id)
 
     # Staff only ever see active products.
-    if user.role != Role.ADMIN:
+    if user.role != Role.MANAGER:
         stmt = stmt.where(Product.archived.is_(False))
     elif archived_only:
         stmt = stmt.where(Product.archived.is_(True))
@@ -168,7 +182,7 @@ def get_by_barcode(code: str, db: DbSession, user: CurrentUser):
         .join(ProductBarcode, ProductBarcode.product_id == Product.id)
         .where(ProductBarcode.business_id == user.business_id, ProductBarcode.code == code.strip())
     ).scalar_one_or_none()
-    if p is None or (p.archived and user.role != Role.ADMIN):
+    if p is None or (p.archived and user.role != Role.MANAGER):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No product has barcode {code.strip()}")
     return p
 
@@ -176,13 +190,13 @@ def get_by_barcode(code: str, db: DbSession, user: CurrentUser):
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(product_id: int, db: DbSession, user: CurrentUser):
     p = _load(db, product_id, user)
-    if p.archived and user.role != Role.ADMIN:
+    if p.archived and user.role != Role.MANAGER:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not found")
     return p
 
 
 @router.post("", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
-def create_product(body: ProductCreate, db: DbSession, admin: AdminUser):
+def create_product(body: ProductCreate, db: DbSession, admin: ManagerUser):
     """FR1.1: reject duplicate SKU or invalid fields."""
     if _sku_taken(db, body.sku, admin):
         raise HTTPException(status.HTTP_409_CONFLICT, f"SKU '{body.sku}' already exists")
@@ -202,6 +216,10 @@ def create_product(body: ProductCreate, db: DbSession, admin: AdminUser):
         barcodes=[ProductBarcode(code=c, business_id=admin.business_id) for c in body.barcodes],
     )
     db.add(product)
+    db.flush()
+    db.refresh(product)
+    record(db, admin, "product.created", "product", product.id, f"Added product {product.name} ({product.sku})",
+           {k: [None, v] for k, v in _state(product).items() if v not in (None, [])})
     db.commit()
 
     # Initial stock goes through StockService so it appears in the audit trail.
@@ -218,9 +236,10 @@ def create_product(body: ProductCreate, db: DbSession, admin: AdminUser):
 
 
 @router.patch("/{product_id}", response_model=ProductOut)
-def update_product(product_id: int, body: ProductUpdate, db: DbSession, admin: AdminUser):
+def update_product(product_id: int, body: ProductUpdate, db: DbSession, admin: ManagerUser):
     """FR1.2 edit. Stock level is not editable here; use stock movements."""
     p = _load(db, product_id, admin)
+    before = _state(p)
     data = body.model_dump(exclude_unset=True)
     if data.get("sku") is not None and _sku_taken(db, data["sku"], admin, exclude_id=p.id):
         raise HTTPException(status.HTTP_409_CONFLICT, f"SKU '{data['sku']}' already exists")
@@ -234,13 +253,18 @@ def update_product(product_id: int, body: ProductUpdate, db: DbSession, admin: A
         if value is None:
             raise HTTPException(422, f"{field} cannot be empty")
         setattr(p, field, value.strip() if isinstance(value, str) else value)
+    db.flush()
+    db.refresh(p)
+    changes = diff(before, _state(p))
+    if changes:
+        record(db, admin, "product.updated", "product", p.id, f"Edited product {p.name}", changes)
     db.commit()
     return _load(db, p.id, admin)
 
 
 @router.put("/{product_id}/suppliers", response_model=ProductOut)
 def set_product_suppliers(
-    product_id: int, body: ProductSuppliersUpdate, db: DbSession, admin: AdminUser
+    product_id: int, body: ProductSuppliersUpdate, db: DbSession, admin: ManagerUser
 ):
     """FR3.2: associate one or more suppliers with a product."""
     p = _load(db, product_id, admin)
@@ -250,29 +274,38 @@ def set_product_suppliers(
     new_inactive = [s.name for s in chosen if s.id not in already and not s.is_active]
     if new_inactive:
         raise HTTPException(422, f"Cannot link deactivated supplier(s): {', '.join(new_inactive)}")
+    before = sorted(s.name for s in p.suppliers)
     p.suppliers = chosen
+    after = sorted(s.name for s in chosen)
+    if before != after:
+        record(db, admin, "product.suppliers", "product", p.id, f"Changed suppliers of {p.name}",
+               {"suppliers": [before, after]})
     db.commit()
     return _load(db, p.id, admin)
 
 
 @router.post("/{product_id}/archive", response_model=ProductOut)
-def archive_product(product_id: int, db: DbSession, admin: AdminUser):
+def archive_product(product_id: int, db: DbSession, admin: ManagerUser):
     p = _load(db, product_id, admin)
-    p.archived = True
+    if not p.archived:
+        p.archived = True
+        record(db, admin, "product.archived", "product", p.id, f"Archived product {p.name}")
     db.commit()
     return _load(db, p.id, admin)
 
 
 @router.post("/{product_id}/restore", response_model=ProductOut)
-def restore_product(product_id: int, db: DbSession, admin: AdminUser):
+def restore_product(product_id: int, db: DbSession, admin: ManagerUser):
     p = _load(db, product_id, admin)
-    p.archived = False
+    if p.archived:
+        p.archived = False
+        record(db, admin, "product.restored", "product", p.id, f"Restored product {p.name}")
     db.commit()
     return _load(db, p.id, admin)
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_product(product_id: int, db: DbSession, admin: AdminUser):
+def delete_product(product_id: int, db: DbSession, admin: ManagerUser):
     """FR1.2 / Business Rule: products with movement history can only be archived."""
     p = _load(db, product_id, admin)
     has_history = db.execute(
@@ -283,5 +316,6 @@ def delete_product(product_id: int, db: DbSession, admin: AdminUser):
             status.HTTP_409_CONFLICT,
             "This product has stock movement history and cannot be deleted. Archive it instead.",
         )
+    record(db, admin, "product.deleted", "product", p.id, f"Deleted product {p.name} ({p.sku})")
     db.delete(p)
     db.commit()

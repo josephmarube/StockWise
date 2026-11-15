@@ -20,7 +20,7 @@ class TestSignup:
         r = client.post("/api/auth/signup", json=SIGNUP)
         assert r.status_code == 201, r.text
         body = r.json()
-        assert body["user"]["role"] == "ADMIN" and body["user"]["email"] == "wanjiru@kilimanihardware.co.ke"
+        assert body["user"]["role"] == "MANAGER" and body["user"]["email"] == "wanjiru@kilimanihardware.co.ke"
         assert body["user"]["business"]["name"] == "Kilimani Hardware"
         h = auth(body["access_token"])
         # brand-new business starts empty
@@ -52,14 +52,15 @@ class TestSignup:
 
 
 class TestBusinessSettings:
-    def test_admin_can_rename(self, client, admin_h):
-        r = client.patch("/api/business", headers=admin_h, json={"name": "  Test Shop Ltd  "})
-        assert r.status_code == 200 and r.json()["name"] == "Test Shop Ltd"
-        assert client.get("/api/auth/me", headers=admin_h).json()["business"]["name"] == "Test Shop Ltd"
+    def test_members_see_their_business(self, client, admin_h, staff_h):
+        for h in (admin_h, staff_h):
+            assert client.get("/api/business", headers=h).json()["name"] == "Test Shop"
 
-    def test_staff_cannot_rename(self, client, staff_h):
-        assert client.get("/api/business", headers=staff_h).json()["name"] == "Test Shop"
-        assert client.patch("/api/business", headers=staff_h, json={"name": "Mine now"}).status_code == 403
+    def test_managers_and_staff_cannot_rename(self, client, admin_h, staff_h):
+        # FR4.6 (revised): only a System Admin renames a business
+        for h in (admin_h, staff_h):
+            assert client.patch("/api/business", headers=h, json={"name": "Mine now"}).status_code == 405
+        assert client.get("/api/business", headers=admin_h).json()["name"] == "Test Shop"
 
 
 class TestInvites:
@@ -87,10 +88,10 @@ class TestInvites:
         assert client.get(f"/api/invites/preview/{inv['token']}").status_code == 404
 
     def test_admin_role_invite(self, client, admin_h):
-        inv = self._invite(client, admin_h, role="ADMIN")
+        inv = self._invite(client, admin_h, role="MANAGER")
         r = client.post("/api/invites/accept", json={
             "token": inv["token"], "name": "Co-owner", "email": "co@gmail.com", "password": PW})
-        assert r.json()["user"]["role"] == "ADMIN"
+        assert r.json()["user"]["role"] == "MANAGER"
 
     def test_email_locked_invite(self, client, admin_h):
         inv = self._invite(client, admin_h, email="Named@Gmail.com")

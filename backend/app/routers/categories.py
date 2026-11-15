@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
-from ..deps import AdminUser, CurrentUser, DbSession
+from ..activity import record
+from ..deps import ManagerUser, CurrentUser, DbSession
 from ..models import Category
 from ..schemas import CategoryCreate, CategoryOut
 
@@ -16,7 +17,7 @@ def list_categories(db: DbSession, user: CurrentUser):
 
 
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-def create_category(body: CategoryCreate, db: DbSession, admin: AdminUser):
+def create_category(body: CategoryCreate, db: DbSession, admin: ManagerUser):
     exists = db.execute(
         select(Category).where(
             Category.business_id == admin.business_id, func.lower(Category.name) == body.name.lower()
@@ -26,6 +27,8 @@ def create_category(body: CategoryCreate, db: DbSession, admin: AdminUser):
         raise HTTPException(status.HTTP_409_CONFLICT, "Category already exists")
     cat = Category(name=body.name, business_id=admin.business_id)
     db.add(cat)
+    db.flush()
+    record(db, admin, "category.created", "category", cat.id, f"Added category {cat.name}")
     db.commit()
     db.refresh(cat)
     return cat

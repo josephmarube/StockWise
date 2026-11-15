@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
@@ -53,7 +53,7 @@ export default function Users() {
             {data.map((u) => (
               <tr key={u.id} className={u.is_active ? '' : 'is-archived'}>
                 <td><span className="cell-title">{u.name}{u.id === me.id && ' (you)'}</span><span className="cell-sub">{u.email}</span></td>
-                <td><span className={`badge ${u.role === 'ADMIN' ? 'badge-admin' : 'badge-muted'}`}>{u.role === 'ADMIN' ? 'Admin' : 'Staff'}</span></td>
+                <td><span className={`badge ${u.role === 'MANAGER' ? 'badge-admin' : 'badge-muted'}`}>{u.role === 'MANAGER' ? 'Manager' : 'Staff'}</span></td>
                 <td className="hide-sm">{u.is_active ? 'Active' : 'Disabled'}</td>
                 <td className="row-actions">
                   <button className="btn btn-ghost btn-sm" onClick={() => setForm(u)}>Edit</button>
@@ -73,7 +73,7 @@ export default function Users() {
               {invites.data.map((i) => (
                 <tr key={i.id}>
                   <td><span className="cell-title">{i.email || 'Anyone with the link'}</span><span className="cell-sub">Created by {i.created_by.name}</span></td>
-                  <td><span className={`badge ${i.role === 'ADMIN' ? 'badge-admin' : 'badge-muted'}`}>{i.role === 'ADMIN' ? 'Admin' : 'Staff'}</span></td>
+                  <td><span className={`badge ${i.role === 'MANAGER' ? 'badge-admin' : 'badge-muted'}`}>{i.role === 'MANAGER' ? 'Manager' : 'Staff'}</span></td>
                   <td className="hide-sm">{fmtDate(i.expires_at)}</td>
                   <td className="row-actions"><button className="btn btn-ghost btn-sm" onClick={() => setRevoking(i)}>Cancel link</button></td>
                 </tr>
@@ -142,9 +142,9 @@ function UserForm({ user, isSelf, onClose, onSaved }) {
       <form id="user-form" className="form-grid" onSubmit={submit} noValidate>
         <Field label="Full name" id="u-name" error={errors.name}><input id="u-name" value={f.name} onChange={set('name')} maxLength={120} /></Field>
         <Field label="Email" id="u-email" error={errors.email}><input id="u-email" type="email" value={f.email} onChange={set('email')} disabled={!!user} /></Field>
-        <Field label="Role" id="u-role" hint={isSelf ? 'You cannot change your own role.' : f.role === 'ADMIN' ? 'Full access, including suppliers, reports and users.' : 'Can view products and record stock in and out.'}>
+        <Field label="Role" id="u-role" hint={isSelf ? 'You cannot change your own role.' : f.role === 'MANAGER' ? 'Full access, including suppliers, reports and users.' : 'Can view products and record stock in and out.'}>
           <select id="u-role" value={f.role} onChange={set('role')} disabled={isSelf}>
-            <option value="STAFF">Staff</option><option value="ADMIN">Admin</option>
+            <option value="STAFF">Staff</option><option value="MANAGER">Manager</option>
           </select>
         </Field>
         <NewPasswordFields idPrefix="u-pw" label={user ? 'New password (leave blank to keep)' : 'Password'}
@@ -158,32 +158,20 @@ function UserForm({ user, isSelf, onClose, onSaved }) {
 
 
 function BusinessCard() {
-  const { business, setBusiness } = useAuth()
-  const toast = useToast()
-  const [name, setName] = useState(business?.name || '')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const changed = name.trim() && name.trim() !== business?.name
-
-  async function save(e) {
-    e.preventDefault()
-    if (name.trim().length < 2) return setError('Enter at least 2 characters.')
-    setBusy(true)
-    try { setBusiness(await api.patch('/api/business', { name: name.trim() })); setError(''); toast('Business name saved') }
-    catch (err) { setError(err.message) } finally { setBusy(false) }
-  }
-
+  const { business } = useAuth()
+  // Only StockWise (a System Admin) can rename a business, so a shop can't pose as another one.
   return (
-    <form className="panel business-card" onSubmit={save}>
-      <Field label="Business name" id="biz-name" error={error} hint="Shown to everyone in your business.">
-        <input id="biz-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
-      </Field>
-      <button className="btn btn-ghost" disabled={!changed || busy}>{busy ? 'Saving…' : 'Save name'}</button>
-    </form>
+    <div className="panel business-card">
+      <div>
+        <div className="muted small">Business name</div>
+        <div className="business-name">{business?.name}</div>
+      </div>
+      <p className="muted small">To change it, contact StockWise support. Changes made by StockWise appear in your <Link className="link" to="/activity">activity log</Link>.</p>
+    </div>
   )
 }
 
-// Create a one-time link the admin shares (WhatsApp, SMS, email) so someone can join this business.
+// Create a one-time link the manager shares (WhatsApp, SMS, email) so someone can join this business.
 function InviteModal({ onClose, onCreated }) {
   const { business } = useAuth()
   const toast = useToast()
@@ -218,7 +206,7 @@ function InviteModal({ onClose, onCreated }) {
         : <><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button type="submit" form="invite-form" className="btn btn-primary" disabled={busy}>{busy ? 'Creating…' : 'Create invite link'}</button></>}>
       {link ? (
         <div className="onboard">
-          <p>Send this link to the person joining <strong>{business?.name}</strong> as {role === 'ADMIN' ? 'an admin' : 'staff'}. It works once and expires in {days} day{days === '1' ? '' : 's'}.</p>
+          <p>Send this link to the person joining <strong>{business?.name}</strong> as {role === 'MANAGER' ? 'a manager' : 'staff'}. It works once and expires in {days} day{days === '1' ? '' : 's'}.</p>
           <div className="invite-link">
             <input id="invite-url" readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Invite link" />
             <button type="button" className="btn btn-primary" onClick={copy}>Copy link</button>
@@ -228,9 +216,9 @@ function InviteModal({ onClose, onCreated }) {
         </div>
       ) : (
         <form id="invite-form" className="form-grid" onSubmit={create} noValidate>
-          <Field label="Role" id="inv-role" hint={role === 'ADMIN' ? 'Full access, including suppliers, reports and users.' : 'Can view products and record stock in and out.'}>
+          <Field label="Role" id="inv-role" hint={role === 'MANAGER' ? 'Full access, including suppliers, reports and users.' : 'Can view products and record stock in and out.'}>
             <select id="inv-role" value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="STAFF">Staff</option><option value="ADMIN">Admin</option>
+              <option value="STAFF">Staff</option><option value="MANAGER">Manager</option>
             </select>
           </Field>
           <Field label="Link expires in" id="inv-days">

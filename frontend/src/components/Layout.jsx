@@ -9,6 +9,7 @@ const NAV = [
   { to: '/suppliers', label: 'Suppliers', icon: 'truck', admin: true },
   { to: '/reports', label: 'Reports', icon: 'chart', admin: true },
   { to: '/users', label: 'Users', icon: 'users', admin: true },
+  { to: '/activity', label: 'Activity', icon: 'clock', admin: true },
 ]
 
 // Mobile bottom bar: Record sits in the middle, within thumb reach.
@@ -21,9 +22,9 @@ const TABS = [
 ]
 
 export default function Layout() {
-  const { user, isAdmin, logout, business } = useAuth()
+  const { user, isManager, logout, business } = useAuth()
   const nav = useNavigate()
-  const items = NAV.filter((n) => !n.admin || isAdmin)
+  const items = NAV.filter((n) => !n.admin || isManager)
 
   return (
     <div className="shell">
@@ -44,7 +45,7 @@ export default function Layout() {
         <div className="side-user">
           <div>
             <div className="side-user-name">{user.name}</div>
-            <div className="side-user-role">{isAdmin ? 'Admin' : 'Staff'}</div>
+            <div className="side-user-role">{isManager ? 'Manager' : 'Staff'}</div>
           </div>
           <button className="icon-btn" onClick={() => { logout(); nav('/login') }} aria-label="Log out" title="Log out">
             <Icon name="logout" />
@@ -66,7 +67,7 @@ export default function Layout() {
       </main>
 
       <nav className="tabbar" aria-label="Main">
-        {TABS.filter((n) => !n.admin || isAdmin).map((n) => (
+        {TABS.filter((n) => !n.admin || isManager).map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className={`tab ${n.primary ? 'tab-primary' : ''}`}>
             <span className="tab-icon"><Icon name={n.icon} size={22} /></span>
             <span>{n.label}</span>

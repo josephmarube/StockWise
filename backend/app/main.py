@@ -15,11 +15,13 @@ from .database import SessionLocal, engine
 from .migrate import upgrade_to_head
 from .models import Business, Role, User
 from .routers import (
+    activity,
     auth,
     business,
     categories,
     dashboard,
     invites,
+    platform,
     products,
     reports,
     stock,
@@ -46,7 +48,7 @@ def init_db() -> None:
                     name="Administrator",
                     email=s.bootstrap_admin_email.lower(),
                     password_hash=hash_password(s.bootstrap_admin_password),
-                    role=Role.ADMIN,
+                    role=Role.MANAGER,
                 )
             )
             db.commit()
@@ -93,7 +95,8 @@ async def validation_handler(request: Request, exc: RequestValidationError):
     )
 
 
-for r in (auth, business, invites, users, categories, products, suppliers, stock, dashboard, reports):
+for r in (auth, business, invites, users, categories, products, suppliers, stock, dashboard, reports,
+          activity, platform):
     app.include_router(r.router)
 
 

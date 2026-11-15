@@ -52,7 +52,21 @@ Every `git push` to `main` redeploys automatically.
 
 **Free plan behaviour:** the service sleeps after about 15 minutes without visits, and the next visit takes up to a minute to wake it. Open the site a minute before recording your demo or presenting.
 
-## 4. Check it
+## 4. Create a System Admin
+
+System Admins (StockWise staff) can't sign up on the website. Create one from your laptop against the live database, in `backend/` with the venv active:
+
+```bash
+export DATABASE_URL='<your Aiven Service URI>'
+export DATABASE_SSL_CA=ca.pem
+python -m scripts.create_system_admin --email you@example.com --name "Your Name"
+```
+
+It asks for the password twice. Then log in on the live site's normal login page; you land in the System Admin area. (If you seeded the live database after this feature was added, the demo account `support@stockwise.co.ke` already exists.)
+
+Upgrading an existing deployment needs no manual step: on the next deploy, migration 0004 runs automatically, turns every Admin into a Manager and adds the activity log table.
+
+## 5. Check it
 
 - `https://…onrender.com/api/health` should return `{"status":"ok"}`.
 - Render's **Logs** tab should show `Database is up to date.` followed by `Application startup complete.`

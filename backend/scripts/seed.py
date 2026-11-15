@@ -6,8 +6,9 @@ The two shops show multi-business isolation: each admin sees only their own shop
 Usage (from backend/):  python -m scripts.seed            # refuses if data exists
                         python -m scripts.seed --reset    # drops and recreates all tables
 
-Demo passwords: admins use Admin@12345 and staff use Staff@12345. Set SEED_PASSWORD
-to give every demo account a different password instead (do this for a public deployment).
+Demo passwords: managers use Admin@12345, staff use Staff@12345 and the demo System Admin
+(support@stockwise.co.ke) uses System@12345. Set SEED_PASSWORD to give every demo account
+a different password instead.
 """
 import os
 import random
@@ -22,6 +23,7 @@ import app.config  # noqa: F401  (loads .env)
 from app.database import SessionLocal
 from app.migrate import reset_database, upgrade_to_head
 from app.models import (
+    ActivityLog,
     Business,
     Category,
     MovementSource,
@@ -51,7 +53,7 @@ SHOPS = [
     ShopSpec(
         name="Mama Njeri Duka",
         users=[
-            ("Joseph Marube", "admin@stockwise.co.ke", Role.ADMIN),
+            ("Joseph Marube", "admin@stockwise.co.ke", Role.MANAGER),
             ("Grace Wanjiku", "grace@stockwise.co.ke", Role.STAFF),
             ("Brian Otieno", "brian@stockwise.co.ke", Role.STAFF),
         ],
@@ -83,7 +85,7 @@ SHOPS = [
     ShopSpec(
         name="Kilimani Hardware",
         users=[
-            ("Wanjiru Kamau", "wanjiru@kilimanihardware.co.ke", Role.ADMIN),
+            ("Wanjiru Kamau", "wanjiru@kilimanihardware.co.ke", Role.MANAGER),
             ("Daniel Mutua", "daniel@kilimanihardware.co.ke", Role.STAFF),
         ],
         suppliers=[
@@ -111,15 +113,18 @@ def ean13(seed: int) -> str:
     return body + str((10 - total % 10) % 10)
 
 
-DEMO_PASSWORDS = {Role.ADMIN: "Admin@12345", Role.STAFF: "Staff@12345"}
+DEMO_PASSWORDS = {Role.MANAGER: "Admin@12345", Role.STAFF: "Staff@12345", Role.SYSTEM_ADMIN: "System@12345"}
+SYSTEM_ADMIN = ("StockWise Support", "support@stockwise.co.ke")
 
 
 def seed_shop(db, spec: ShopSpec, rng: random.Random, hashes: dict) -> None:
-    biz = Business(name=spec.name)
+    joined = utcnow() - timedelta(days=21, hours=3)
+    biz = Business(name=spec.name, created_at=joined)
     db.add(biz)
     db.flush()
     bid = biz.id
-    users = [User(business_id=bid, name=n, email=e, password_hash=hashes[r], role=r) for n, e, r in spec.users]
+    users = [User(business_id=bid, name=n, email=e, password_hash=hashes[r], role=r, created_at=joined)
+             for n, e, r in spec.users]
     cats = {c: Category(business_id=bid, name=c) for c in sorted({p[2] for p in spec.products})}
     sups = [Supplier(business_id=bid, name=n, contact_person=c, phone=ph, email=e, address=a) for n, c, ph, e, a in spec.suppliers]
     db.add_all([*users, *cats.values(), *sups])
@@ -127,6 +132,19 @@ def seed_shop(db, spec: ShopSpec, rng: random.Random, hashes: dict) -> None:
 
     now = utcnow()
     start = now - timedelta(days=21)
+    owner = users[0]
+
+    def log(action, etype, eid, summary, when, changes=None, who=None):
+        who = who or owner
+        db.add(ActivityLog(business_id=bid, actor_id=who.id, actor_name=who.name, actor_role=who.role.value,
+                           action=action, entity_type=etype, entity_id=eid, summary=summary,
+                           changes=changes, created_at=when))
+
+    log("business.created", "business", bid, f"Created the business {spec.name}", start - timedelta(hours=2))
+    for u in users[1:]:
+        log("user.created", "user", u.id, f"Added {u.name} ({u.email}) as Staff", start - timedelta(hours=1))
+    for s in sups:
+        log("supplier.created", "supplier", s.id, f"Added supplier {s.name}", start - timedelta(minutes=50))
     staff = users[1] if len(users) > 1 else users[0]
 
     def move(p, user, typ, qty, note, t, source=MovementSource.MANUAL):
@@ -158,6 +176,7 @@ def seed_shop(db, spec: ShopSpec, rng: random.Random, hashes: dict) -> None:
                 move(p, rng.choice(users), MovementType.OUT, qty,
                      rng.choice(["Sale", "Sale", "Sale", None, "Damaged"]), t,
                      rng.choice([MovementSource.MANUAL] * 3 + [MovementSource.SCANNER]))
+        log("product.created", "product", p.id, f"Added product {name} ({sku})", start - timedelta(minutes=30))
         target = spec.end_level.get(sku)
         if target is not None and p.current_stock != target:
             typ = MovementType.OUT if p.current_stock > target else MovementType.IN
@@ -182,13 +201,16 @@ def main(reset: bool) -> None:
         hashes = {role: hash_password(pw) for role, pw in passwords.items()}
         for spec in SHOPS:
             seed_shop(db, spec, rng, hashes)
+        db.add(User(business_id=None, name=SYSTEM_ADMIN[0], email=SYSTEM_ADMIN[1],
+                    password_hash=hashes[Role.SYSTEM_ADMIN], role=Role.SYSTEM_ADMIN))
         db.commit()
 
     print("Seeded two demo businesses. Log in with:")
     for spec in SHOPS:
         print(f"  {spec.name}")
         for _, e, r in spec.users:
-            print(f"    {r.value:5}  {e}  /  {passwords[r]}")
+            print(f"    {r.value:7}  {e}  /  {passwords[r]}")
+    print(f"  StockWise (System Admin)\n    {SYSTEM_ADMIN[1]}  /  {passwords[Role.SYSTEM_ADMIN]}")
     print("  (each product has a demo barcode; see Products > product page)")
 
 

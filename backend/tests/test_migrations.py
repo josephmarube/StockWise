@@ -41,7 +41,7 @@ def test_fresh_database_matches_models(eng):
     migrate.upgrade_to_head()
     assert _schema_diff(eng) == []
     with eng.connect() as c:
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0003"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0004"
 
 
 def test_v1_database_upgrades_and_keeps_data(eng):
@@ -93,6 +93,33 @@ def test_v1_1_database_with_barcodes_moves_into_one_business(eng):
         bid = c.execute(text("SELECT id FROM businesses")).scalar()
         assert c.execute(text("SELECT business_id FROM product_barcodes")).scalar() == bid
         assert c.execute(text("SELECT business_id FROM users")).scalar() == bid
+        assert c.execute(text("SELECT role FROM users")).scalar() == "MANAGER"
+
+
+def test_0003_admins_become_managers_and_system_admins_need_no_business(eng):
+    """Migration 0004: ADMIN accounts and invites become MANAGER; the role/business rule is enforced."""
+    with eng.begin() as c:
+        command.upgrade(migrate._config(c), "0003")
+        c.execute(text("INSERT INTO businesses (id,name,is_active,created_at) VALUES (1,'B',1,NOW())"))
+        c.execute(text("INSERT INTO users (id,business_id,name,email,password_hash,role,is_active,created_at) "
+                       "VALUES (1,1,'A','a@x.co','h','ADMIN',1,NOW()), (2,1,'S','s@x.co','h','STAFF',1,NOW())"))
+        c.execute(text("INSERT INTO invites (business_id,token_hash,role,created_by_id,created_at,expires_at) "
+                       "VALUES (1,REPEAT('a',64),'ADMIN',1,NOW(),NOW())"))
+    migrate.upgrade_to_head()
+    assert _schema_diff(eng) == []
+    with eng.begin() as c:
+        assert c.execute(text("SELECT role FROM users ORDER BY id")).scalars().all() == ["MANAGER", "STAFF"]
+        assert c.execute(text("SELECT role FROM invites")).scalar() == "MANAGER"
+        c.execute(text("INSERT INTO users (name,email,password_hash,role,is_active,created_at) "
+                       "VALUES ('Sys','sys@x.co','h','SYSTEM_ADMIN',1,NOW())"))
+    bad_rows = [
+        "(NULL, 'n1@x.co', 'MANAGER')",      # a shop account must belong to a business
+        "(1, 'n2@x.co', 'SYSTEM_ADMIN')",    # a System Admin must not
+    ]
+    for row in bad_rows:
+        with pytest.raises(Exception), eng.begin() as c:
+            c.execute(text("INSERT INTO users (business_id,email,role,name,password_hash,is_active,created_at) "
+                           f"VALUES {row[:-1]}, 'X', 'h', 1, NOW())"))
 
 
 def test_upgrade_is_idempotent(eng):

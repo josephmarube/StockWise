@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
-from ..deps import CurrentUser, DbSession
+from ..activity import record
+from ..deps import DbSession, SignedInUser
 from ..models import Business, Role, User
 from ..ratelimit import limit
 from ..schemas import LoginRequest, MeOut, SignupRequest, TokenResponse
@@ -31,7 +32,7 @@ def login(body: LoginRequest, db: DbSession):
     if (
         not verify_password(body.password, user.password_hash)
         or not user.is_active
-        or not user.business.is_active
+        or (user.business is not None and not user.business.is_active)
     ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, GENERIC_LOGIN_ERROR)
     return issue_token(user)
@@ -44,7 +45,7 @@ def login(body: LoginRequest, db: DbSession):
     dependencies=[Depends(limit("signup", 5, 3600))],
 )
 def signup(body: SignupRequest, db: DbSession):
-    """Create a new business with the person signing up as its first admin, and log them in."""
+    """Create a new business with the person signing up as its first manager, and log them in."""
     email = body.email.lower()
     if email_taken(db, email):
         raise HTTPException(status.HTTP_409_CONFLICT, EMAIL_TAKEN)
@@ -54,14 +55,16 @@ def signup(body: SignupRequest, db: DbSession):
         name=body.name,
         email=email,
         password_hash=hash_password(body.password),
-        role=Role.ADMIN,
+        role=Role.MANAGER,
     )
     db.add_all([business, user])
+    db.flush()
+    record(db, user, "business.created", "business", business.id, f"Created the business {business.name}")
     db.commit()
     db.refresh(user)
     return issue_token(user)
 
 
 @router.get("/me", response_model=MeOut)
-def me(user: CurrentUser):
+def me(user: SignedInUser):
     return user

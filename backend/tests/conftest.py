@@ -32,6 +32,7 @@ ADMIN = {"email": "admin@shop.co.ke", "password": new_password()}
 STAFF = {"email": "staff@shop.co.ke", "password": new_password()}
 # A second, unrelated business used to prove isolation.
 OTHER_ADMIN = {"email": "boss@othershop.co.ke", "password": new_password()}
+SYSTEM_ADMIN = {"email": "support@stockwise.co.ke", "password": new_password()}
 OTHER_CATEGORY_ID = 3  # "Beverages" in the other business (same name is allowed per business)
 
 
@@ -71,9 +72,10 @@ def db(engine):
     s.flush()
     s.add_all(
         [
-            User(business_id=shop.id, name="Amina Admin", email=ADMIN["email"], password_hash=hash_password(ADMIN["password"]), role=Role.ADMIN),
+            User(business_id=shop.id, name="Amina Admin", email=ADMIN["email"], password_hash=hash_password(ADMIN["password"]), role=Role.MANAGER),
             User(business_id=shop.id, name="Sam Staff", email=STAFF["email"], password_hash=hash_password(STAFF["password"]), role=Role.STAFF),
-            User(business_id=other.id, name="Olive Other", email=OTHER_ADMIN["email"], password_hash=hash_password(OTHER_ADMIN["password"]), role=Role.ADMIN),
+            User(business_id=other.id, name="Olive Other", email=OTHER_ADMIN["email"], password_hash=hash_password(OTHER_ADMIN["password"]), role=Role.MANAGER),
+            User(business_id=None, name="Sasha Support", email=SYSTEM_ADMIN["email"], password_hash=hash_password(SYSTEM_ADMIN["password"]), role=Role.SYSTEM_ADMIN),
         ]
     )
     s.add_all([Category(business_id=shop.id, name="Beverages"), Category(business_id=shop.id, name="Household")])
@@ -129,6 +131,12 @@ def staff_h(client):
 def other_h(client):
     """Admin of the other business."""
     return _login(client, OTHER_ADMIN)
+
+
+@pytest.fixture()
+def sys_h(client):
+    """A StockWise System Admin (no business)."""
+    return _login(client, SYSTEM_ADMIN)
 
 
 @pytest.fixture()

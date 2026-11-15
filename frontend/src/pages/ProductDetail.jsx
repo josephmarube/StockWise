@@ -11,7 +11,7 @@ const LIMIT = 20
 
 export default function ProductDetail() {
   const { id } = useParams()
-  const { isAdmin } = useAuth()
+  const { isManager } = useAuth()
   const nav = useNavigate()
   const toast = useToast()
   const [offset, setOffset] = useState(0)
@@ -74,19 +74,19 @@ export default function ProductDetail() {
           </dl>
           <div className="barcodes-line">
             <Icon name="barcode" size={16} />
-            {p.barcodes.length ? p.barcodes.join(', ') : <span className="muted">No barcode{isAdmin ? ' - add one with Edit details' : ''}</span>}
+            {p.barcodes.length ? p.barcodes.join(', ') : <span className="muted">No barcode{isManager ? ' - add one with Edit details' : ''}</span>}
           </div>
         </div>
 
         <div className="panel">
           <div className="panel-head">
             <h2>Suppliers</h2>
-            {isAdmin && <button className="btn btn-ghost btn-sm" onClick={() => setLinking(true)}>Change</button>}
+            {isManager && <button className="btn btn-ghost btn-sm" onClick={() => setLinking(true)}>Change</button>}
           </div>
           {p.suppliers.length === 0
             ? <p className="muted">No suppliers linked.</p>
             : <ul className="chips">{p.suppliers.map((s) => <li key={s.id} className={`chip ${s.is_active ? '' : 'chip-muted'}`}>{s.name}{!s.is_active && ' (inactive)'}</li>)}</ul>}
-          {isAdmin && (
+          {isManager && (
             <div className="admin-actions">
               <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}><Icon name="edit" size={16} /> Edit details</button>
               {p.archived

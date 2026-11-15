@@ -12,11 +12,13 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
+    JSON,
     Numeric,
     String,
     Index,
@@ -34,8 +36,12 @@ def utcnow() -> datetime:
 
 
 class Role(str, enum.Enum):
-    ADMIN = "ADMIN"
-    STAFF = "STAFF"
+    SYSTEM_ADMIN = "SYSTEM_ADMIN"  # StockWise staff: oversees the platform, belongs to no business
+    MANAGER = "MANAGER"            # runs one business: products, suppliers, reports, team
+    STAFF = "STAFF"                # records stock in one business
+
+
+BUSINESS_ROLES = (Role.MANAGER, Role.STAFF)
 
 
 class MovementType(str, enum.Enum):
@@ -80,9 +86,19 @@ product_suppliers = Table(
 
 class User(Base):
     __tablename__ = "users"
+    # System admins belong to no business; everyone else belongs to exactly one.
+    __table_args__ = (
+        CheckConstraint(
+            "(role = 'SYSTEM_ADMIN' AND business_id IS NULL) OR "
+            "(role <> 'SYSTEM_ADMIN' AND business_id IS NOT NULL)",
+            name="ck_users_role_business",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    business_id: Mapped[int] = _business_fk()
+    business_id: Mapped[int | None] = mapped_column(
+        ForeignKey("businesses.id", ondelete="RESTRICT"), index=True, nullable=True
+    )
     name: Mapped[str] = mapped_column(String(120))
     # Globally unique: one account belongs to exactly one business.
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -91,7 +107,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    business: Mapped[Business] = relationship()
+    business: Mapped[Business | None] = relationship()
     movements: Mapped[list[StockMovement]] = relationship(back_populates="user")
 
     def has_role(self, role: Role) -> bool:
@@ -225,16 +241,16 @@ class StockMovement(Base):
 
 
 class Invite(Base):
-    """A one-time link an admin shares so a new member can join their business."""
+    """A one-time link a manager shares so a new member can join their business."""
 
     __tablename__ = "invites"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     business_id: Mapped[int] = _business_fk()
-    # Only the SHA-256 of the token is stored; the token itself is shown once to the admin.
+    # Only the SHA-256 of the token is stored; the token itself is shown once to the manager.
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    role: Mapped[Role] = mapped_column(Enum(Role, name="role"), default=Role.STAFF)
+    role: Mapped[Role] = mapped_column(Enum(Role, name="role"), default=Role.STAFF)  # MANAGER or STAFF
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
@@ -246,3 +262,34 @@ class Invite(Base):
 
     def is_usable(self, now: datetime) -> bool:
         return self.accepted_at is None and self.revoked_at is None and now < self.expires_at
+
+
+class ActivityLog(Base):
+    """Who changed what, with before/after values (like Zoho / Google Workspace admin logs).
+
+    Stock movements keep their own audit trail (FR7.1); this log covers everything else:
+    products, suppliers, categories, users, invites and business settings. Entries are
+    never edited or deleted. Actions a System Admin takes on a business are logged against
+    that business, so its managers can see them.
+    """
+
+    __tablename__ = "activity_logs"
+    __table_args__ = (Index("ix_activity_business_created", "business_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # NULL for platform-level entries (e.g. a System Admin account being created).
+    business_id: Mapped[int | None] = mapped_column(
+        ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=True
+    )
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    # Copied at the time, so the entry still reads correctly if the person is renamed later.
+    actor_name: Mapped[str] = mapped_column(String(120))
+    actor_role: Mapped[str] = mapped_column(String(20))
+    action: Mapped[str] = mapped_column(String(40))        # e.g. product.updated
+    entity_type: Mapped[str] = mapped_column(String(20))   # product, supplier, user, ...
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    summary: Mapped[str] = mapped_column(String(255))
+    changes: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # {field: [before, after]}
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    actor: Mapped[User | None] = relationship()

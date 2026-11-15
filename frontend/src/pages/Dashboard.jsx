@@ -6,7 +6,7 @@ import { Empty, ErrorNote, Icon, ProductAvatar, Skeleton, StockBar, StockBadge, 
 import { BarList, TrendChart, money } from '../components/charts'
 
 export default function Dashboard() {
-  const { user, isAdmin, business } = useAuth()
+  const { user, isManager, business } = useAuth()
   // Poll so changes recorded by other users show up without a manual refresh.
   const { data, error, loading, reload } = useApi('/api/dashboard', null, { poll: 10000 })
   const trends = useApi('/api/dashboard/trends', { days: 14 }, { poll: 60000 })
@@ -44,14 +44,14 @@ export default function Dashboard() {
       {data && data.active_products === 0 && data.recent_movements.length === 0 && (
         <section className="panel onboard" aria-labelledby="start-h">
           <h2 id="start-h">Get {business?.name || 'your shop'} started</h2>
-          {isAdmin ? (
+          {isManager ? (
             <ol className="onboard-steps">
               <li className="onboard-step"><strong>Add your products</strong><p>Name, price, reorder level and what's on the shelf today. Scan barcodes as you go.</p><Link className="btn btn-primary btn-sm" to="/products?new=1">Add a product</Link></li>
               <li className="onboard-step"><strong>Invite your staff</strong><p>Send a link on WhatsApp. They set their own password and can record stock straight away.</p><Link className="btn btn-ghost btn-sm" to="/users?invite=1">Invite people</Link></li>
               <li className="onboard-step"><strong>Record sales and deliveries</strong><p>Stock levels, low-stock alerts and reports update from every entry.</p><Link className="btn btn-ghost btn-sm" to="/record">Record stock</Link></li>
             </ol>
           ) : (
-            <p className="muted">Your admin hasn't added any products yet. Once they do, you can record sales and deliveries here.</p>
+            <p className="muted">Your manager hasn't added any products yet. Once they do, you can record sales and deliveries here.</p>
           )}
         </section>
       )}
@@ -61,7 +61,7 @@ export default function Dashboard() {
           <section className="figures" aria-label="Stock summary">
             <div className="figure"><span className="figure-n">{fmtNum(data.active_products)}</span><span className="figure-l">products</span></div>
             <div className="figure"><span className="figure-n">{fmtNum(data.total_units)}</span><span className="figure-l">units on hand</span></div>
-            {isAdmin && <div className="figure"><span className="figure-n">{fmtMoney(data.stock_value)}</span><span className="figure-l">stock value</span></div>}
+            {isManager && <div className="figure"><span className="figure-n">{fmtMoney(data.stock_value)}</span><span className="figure-l">stock value</span></div>}
             <div className={`figure ${data.low_stock_count ? 'figure-warn' : ''}`}><span className="figure-n">{fmtNum(data.low_stock_count)}</span><span className="figure-l">at or below reorder level</span></div>
           </section>
 
@@ -109,7 +109,7 @@ export default function Dashboard() {
                   : <BarList items={trends.data.top_movers} value={(m) => m.qty_out} label={(m) => m.name} sub={(m) => m.sku}
                       onSelect={(m) => nav(`/products/${m.product_id}`)} />}
               </section>
-              {isAdmin && trends.data?.by_category.length > 0 && (
+              {isManager && trends.data?.by_category.length > 0 && (
                 <section className="panel" aria-labelledby="cat-h">
                   <div className="panel-head"><h2 id="cat-h">Stock value by category</h2></div>
                   <BarList items={trends.data.by_category} value={(c) => Number(c.value)} label={(c) => c.name}
@@ -122,7 +122,7 @@ export default function Dashboard() {
           <section className="panel" aria-labelledby="recent-h">
               <div className="panel-head">
                 <h2 id="recent-h">Latest stock changes</h2>
-                {isAdmin && <Link to="/reports?tab=audit" className="link">Audit log</Link>}
+                {isManager && <Link to="/reports?tab=audit" className="link">Audit log</Link>}
               </div>
               {data.recent_movements.length === 0 ? (
                 <Empty title="No stock recorded yet" action={<Link className="btn btn-primary" to="/record">Record stock</Link>} />

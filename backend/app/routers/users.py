@@ -1,8 +1,9 @@
-"""User account management (admin only; FR4.2, Business Rules 5.5), within the admin's business."""
+"""User account management (managers only; FR4.2, Business Rules 5.5), within the manager's business."""
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
-from ..deps import AdminUser, DbSession
+from ..activity import ROLE_LABELS, diff, record, snapshot
+from ..deps import ManagerUser, DbSession
 from ..models import Role, User
 from ..schemas import UserCreate, UserOut, UserUpdate
 from ..security import hash_password
@@ -18,14 +19,14 @@ def email_taken(db, email: str) -> bool:
 
 
 @router.get("", response_model=list[UserOut])
-def list_users(db: DbSession, admin: AdminUser):
+def list_users(db: DbSession, admin: ManagerUser):
     return db.execute(
         select(User).where(User.business_id == admin.business_id).order_by(User.name)
     ).scalars().all()
 
 
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def create_user(body: UserCreate, db: DbSession, admin: AdminUser):
+def create_user(body: UserCreate, db: DbSession, admin: ManagerUser):
     email = body.email.lower()
     if email_taken(db, email):
         raise HTTPException(status.HTTP_409_CONFLICT, EMAIL_TAKEN)
@@ -37,33 +38,37 @@ def create_user(body: UserCreate, db: DbSession, admin: AdminUser):
         role=body.role,
     )
     db.add(user)
+    db.flush()
+    record(db, admin, "user.created", "user", user.id,
+           f"Added {user.name} ({user.email}) as {ROLE_LABELS[user.role.value]}")
     db.commit()
     db.refresh(user)
     return user
 
 
-def _active_admin_count(db, business_id: int) -> int:
+def _active_manager_count(db, business_id: int) -> int:
     return db.scalar(
         select(func.count())
         .select_from(User)
-        .where(User.business_id == business_id, User.role == Role.ADMIN, User.is_active.is_(True))
+        .where(User.business_id == business_id, User.role == Role.MANAGER, User.is_active.is_(True))
     )
 
 
 @router.patch("/{user_id}", response_model=UserOut)
-def update_user(user_id: int, body: UserUpdate, db: DbSession, admin: AdminUser):
+def update_user(user_id: int, body: UserUpdate, db: DbSession, admin: ManagerUser):
     user = db.get(User, user_id)
     if user is None or user.business_id != admin.business_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
-    losing_admin = user.role == Role.ADMIN and user.is_active and (
-        (body.role is not None and body.role != Role.ADMIN) or body.is_active is False
+    losing_manager = user.role == Role.MANAGER and user.is_active and (
+        (body.role is not None and body.role != Role.MANAGER) or body.is_active is False
     )
-    if losing_admin and _active_admin_count(db, admin.business_id) <= 1:
-        raise HTTPException(status.HTTP_409_CONFLICT, "At least one active admin is required")
+    if losing_manager and _active_manager_count(db, admin.business_id) <= 1:
+        raise HTTPException(status.HTTP_409_CONFLICT, "At least one active manager is required")
     if user.id == admin.id and body.is_active is False:
         raise HTTPException(status.HTTP_409_CONFLICT, "You cannot deactivate your own account")
 
+    before = snapshot(user, ("name", "role", "is_active"))
     if body.name is not None:
         user.name = body.name.strip()
     if body.role is not None:
@@ -72,6 +77,11 @@ def update_user(user_id: int, body: UserUpdate, db: DbSession, admin: AdminUser)
         user.is_active = body.is_active
     if body.password:
         user.password_hash = hash_password(body.password)
+    changes = diff(before, snapshot(user, ("name", "role", "is_active")))
+    if body.password:
+        changes["password"] = ["(hidden)", "reset"]  # never log the password itself
+    if changes:
+        record(db, admin, "user.updated", "user", user.id, f"Changed account of {user.name}", changes)
     db.commit()
     db.refresh(user)
     return user
