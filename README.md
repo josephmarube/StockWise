@@ -1,5 +1,7 @@
 # StockWise
 
+[![CI](https://github.com/josephmarube/StockWise/actions/workflows/ci.yml/badge.svg)](https://github.com/josephmarube/StockWise/actions/workflows/ci.yml)
+
 A web-based inventory management system for small retail businesses (scoped to Nairobi, Kenya). Built to the StockWise SRS.
 
 **Many businesses, one platform.** Like Slack workspaces, each shop signs up and gets its own private space: products, stock, suppliers, staff and reports. The manager invites staff with a link. No business can see or change another's data. StockWise's own System Admins oversee the platform but see only business metadata, and everything they do is shown to the business.
@@ -142,6 +144,8 @@ pytest                                   # fast, in-memory SQLite (177 tests)
 # Full suite against real MySQL (186 tests), adding the row-lock concurrency, migration and server-command tests:
 TEST_DATABASE_URL='mysql+pymysql://stockwise:<your-db-password>@127.0.0.1/stockwise_test' pytest
 ```
+
+GitHub Actions runs the full MySQL suite, a lint check and a frontend build on every pull request and every push to `main` (`.github/workflows/ci.yml`).
 
 The MySQL run needs the empty `stockwise_test` database from step 1. Test accounts, passwords and keys are generated randomly on each run. Tests are named after the requirement they verify (`test_fr2_2_...`, `test_nfr1_...`). See `docs/TRACEABILITY.md`.
 
