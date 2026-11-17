@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useApi, useDebounced } from '../lib/hooks'
-import { fmtDateFull, fmtMoney, fmtNum, todayLocal } from '../lib/format'
+import { fmtDateFull, fmtMoney, fmtNum, fmtQty, todayLocal } from '../lib/format'
 import { Empty, ErrorNote, Icon, Pager, SourceTag, Spinner, TypeTag, useToast } from '../components/ui'
 
 const PRESETS = [
@@ -74,8 +74,8 @@ function StockReport({ start, end }) {
       {data && (
         <>
           <div className="figures figures-sm">
-            <div className="figure"><span className="figure-n">{fmtNum(data.totals.qty_in)}</span><span className="figure-l">units in</span></div>
-            <div className="figure"><span className="figure-n">{fmtNum(data.totals.qty_out)}</span><span className="figure-l">units out</span></div>
+            <div className="figure"><span className="figure-n">{fmtMoney(data.totals.value_in).replace(/\.00$/, '')}</span><span className="figure-l">stock in (at selling price)</span></div>
+            <div className="figure"><span className="figure-n">{fmtMoney(data.totals.value_out).replace(/\.00$/, '')}</span><span className="figure-l">stock out (at selling price)</span></div>
             <div className="figure"><span className="figure-n">{fmtNum(data.totals.units_on_hand)}</span><span className="figure-l">on hand now</span></div>
             <div className="figure"><span className="figure-n">{fmtMoney(data.totals.stock_value)}</span><span className="figure-l">stock value now</span></div>
           </div>
@@ -87,10 +87,10 @@ function StockReport({ start, end }) {
                   {data.rows.map((r) => (
                     <tr key={r.product_id} className={r.archived ? 'is-archived' : ''}>
                       <td><span className="cell-title">{r.name}</span><span className="cell-sub">{r.sku} · {r.category}{r.archived ? ' · archived' : ''}</span></td>
-                      <td className="num qty-in">{r.qty_in ? `+${fmtNum(r.qty_in)}` : '—'}</td>
-                      <td className="num qty-out">{r.qty_out ? `−${fmtNum(r.qty_out)}` : '—'}</td>
-                      <td className={`num ${r.low_stock && !r.archived ? 'stock-txt-low strong' : ''}`}>{fmtNum(r.current_stock)}</td>
-                      <td className="num muted">{fmtNum(r.reorder_threshold)}</td>
+                      <td className="num qty-in">{r.qty_in ? `+${fmtQty(r.qty_in, r.unit)}` : '—'}</td>
+                      <td className="num qty-out">{r.qty_out ? `−${fmtQty(r.qty_out, r.unit)}` : '—'}</td>
+                      <td className={`num ${r.low_stock && !r.archived ? 'stock-txt-low strong' : ''}`}>{fmtQty(r.current_stock, r.unit)}</td>
+                      <td className="num muted">{fmtQty(r.reorder_threshold, r.unit)}</td>
                       <td className="num">{fmtMoney(r.stock_value)}</td>
                     </tr>
                   ))}
@@ -154,8 +154,8 @@ function AuditLog({ start, end }) {
                     <td><span className="cell-title">{m.product.name}</span><span className="cell-sub">{m.product.sku}</span></td>
                     <td><TypeTag type={m.type} override={m.override} /></td>
                     <td><SourceTag source={m.source} always /></td>
-                    <td className={`num qty-${m.type.toLowerCase()}`}>{m.type === 'IN' ? '+' : '−'}{fmtNum(m.quantity)}</td>
-                    <td className="num">{fmtNum(m.stock_after)}</td>
+                    <td className={`num qty-${m.type.toLowerCase()}`}>{m.type === 'IN' ? '+' : '−'}{fmtQty(m.quantity, m.product.unit)}</td>
+                    <td className="num">{fmtQty(m.stock_after, m.product.unit)}</td>
                     <td className="muted">{m.note}</td>
                   </tr>
                 ))}

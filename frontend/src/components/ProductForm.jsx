@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useApi } from '../lib/hooks'
+import { UNITS, unitOf } from '../lib/format'
 import BarcodeScanner from './BarcodeScanner'
 import { Field, Icon, Modal, useToast } from './ui'
 
@@ -18,6 +19,7 @@ export default function ProductForm({ product, onClose, onSaved, initialBarcode 
     name: product?.name || '',
     category_id: product?.category.id || '',
     unit_price: product ? String(product.unit_price) : '',
+    unit: product?.unit || 'PIECE',
     reorder_threshold: product ? String(product.reorder_threshold) : '',
     initial_stock: '0',
     supplier_ids: [],
@@ -29,6 +31,8 @@ export default function ProductForm({ product, onClose, onSaved, initialBarcode 
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const whole = unitOf(f.unit).whole
+  const sym = unitOf(f.unit).symbol
 
   function validate() {
     const e = {}
@@ -37,8 +41,11 @@ export default function ProductForm({ product, onClose, onSaved, initialBarcode 
     if (!f.name.trim()) e.name = 'Enter a product name.'
     if (!f.category_id && !newCat?.trim()) e.category_id = 'Choose a category.'
     if (f.unit_price === '' || !/^\d+(\.\d{1,2})?$/.test(f.unit_price)) e.unit_price = 'Enter a price like 120 or 120.50.'
-    if (!/^\d+$/.test(f.reorder_threshold)) e.reorder_threshold = 'Enter a whole number, 0 or more.'
-    if (!editing && !/^\d+$/.test(f.initial_stock)) e.initial_stock = 'Enter a whole number, 0 or more.'
+    // Pieces are whole numbers; kg, g, L, mL and m take up to 3 decimals.
+    const amount = whole ? /^\d+$/ : /^\d+(\.\d{1,3})?$/
+    const amountMsg = whole ? 'Enter a whole number, 0 or more.' : `Enter an amount in ${sym}, like 2 or 2.5.`
+    if (!amount.test(f.reorder_threshold)) e.reorder_threshold = amountMsg
+    if (!editing && !amount.test(f.initial_stock)) e.initial_stock = amountMsg
     if (codeDraft.trim()) e.barcodes = 'Press Enter or Add to keep the barcode you typed, or clear it.'
     setErrors(e)
     return !Object.keys(e).length
@@ -56,12 +63,12 @@ export default function ProductForm({ product, onClose, onSaved, initialBarcode 
       }
       const body = {
         sku: f.sku.trim(), name: f.name.trim(), category_id: categoryId,
-        unit_price: f.unit_price, reorder_threshold: Number(f.reorder_threshold),
+        unit_price: f.unit_price, unit: f.unit, reorder_threshold: f.reorder_threshold,
         barcodes: f.barcodes,
       }
       const saved = editing
         ? await api.patch(`/api/products/${product.id}`, body)
-        : await api.post('/api/products', { ...body, initial_stock: Number(f.initial_stock), supplier_ids: f.supplier_ids })
+        : await api.post('/api/products', { ...body, initial_stock: f.initial_stock, supplier_ids: f.supplier_ids })
       toast(editing ? 'Product saved' : 'Product added')
       onSaved(saved)
     } catch (err) {
@@ -120,11 +127,17 @@ export default function ProductForm({ product, onClose, onSaved, initialBarcode 
             </div>
           )}
         </Field>
-        <Field label="Unit price (KES)" id="p-price" error={errors.unit_price}>
+        <Field label="Sold by" id="p-unit" error={errors.unit}
+          hint={whole ? 'Counted in whole items: packets, bottles, tins.' : `Loose goods: record any amount, like 0.25 ${sym}.`}>
+          <select id="p-unit" value={f.unit} onChange={set('unit')}>
+            {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+          </select>
+        </Field>
+        <Field label={whole ? 'Price (KES)' : `Price per ${sym} (KES)`} id="p-price" error={errors.unit_price}>
           <input id="p-price" inputMode="decimal" value={f.unit_price} onChange={set('unit_price')} />
         </Field>
-        <Field label="Reorder level" id="p-thr" error={errors.reorder_threshold} hint="Flag as low stock at or below this quantity.">
-          <input id="p-thr" inputMode="numeric" value={f.reorder_threshold} onChange={set('reorder_threshold')} />
+        <Field label={whole ? 'Reorder level' : `Reorder level (${sym})`} id="p-thr" error={errors.reorder_threshold} hint="Flag as low stock at or below this amount.">
+          <input id="p-thr" inputMode={whole ? 'numeric' : 'decimal'} value={f.reorder_threshold} onChange={set('reorder_threshold')} />
         </Field>
         <div className="span-2">
           <Field label="Barcodes" id="p-code" error={errors.barcodes} hint="Scan or type each barcode on the packaging. Leave empty if it has none.">
@@ -148,8 +161,8 @@ export default function ProductForm({ product, onClose, onSaved, initialBarcode 
           </Field>
         </div>
         {!editing && (
-          <Field label="Opening stock" id="p-init" error={errors.initial_stock} hint="Count on the shelf today. Recorded as a stock in.">
-            <input id="p-init" inputMode="numeric" value={f.initial_stock} onChange={set('initial_stock')} />
+          <Field label={whole ? 'Opening stock' : `Opening stock (${sym})`} id="p-init" error={errors.initial_stock} hint="Count on the shelf today. Recorded as a stock in.">
+            <input id="p-init" inputMode={whole ? 'numeric' : 'decimal'} value={f.initial_stock} onChange={set('initial_stock')} />
           </Field>
         )}
         {!editing && sups.data?.length > 0 && (

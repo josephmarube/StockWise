@@ -40,8 +40,8 @@ def create_movement(body: MovementCreate, db: DbSession, user: CurrentUser):
             content={
                 "detail": e.detail,
                 "code": "INSUFFICIENT_STOCK",
-                "available": e.available,
-                "requested": e.requested,
+                "available": float(e.available),
+                "requested": float(e.requested),
                 "can_override": e.can_override,
             },
         )

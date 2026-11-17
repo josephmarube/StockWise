@@ -9,6 +9,7 @@ Maps each SRS requirement to where it is implemented and how it is verified. Tes
 | FR1.1 Add product | `routers/products.py::create_product`, `ProductForm.jsx` | `test_fr1_1_create_product`, `test_fr1_1_duplicate_sku_rejected`, `test_fr1_1_invalid_fields_rejected` (8 cases), `test_fr1_1_initial_stock_is_audited`; E2E duplicate-SKU message |
 | FR1.2 Edit / archive | `update_product`, `archive_product`, `restore_product`, `delete_product` | `test_fr1_2_edit_product`, `test_fr1_2_stock_not_editable_directly`, `test_fr1_2_product_with_history_cannot_be_deleted`, `test_fr1_2_product_without_history_can_be_deleted`, `test_fr1_2_archive_keeps_history_and_hides_from_staff` |
 | FR1.4 Product barcodes *(new; add to SRS)* | `ProductBarcode` model, `_check_barcodes_free`, `ProductForm.jsx` | `TestFR1_4Barcodes` (create, uniqueness, validation, edit, search, staff blocked); E2E duplicate-barcode message |
+| FR1.5 Units of measure *(new)* | `Unit` enum (piece, kg, g, L, mL, m) and DECIMAL(12,3) quantities (migration 0006); whole numbers enforced for pieces in `record_movement` and `products.py::_check_unit`; "Sold by" in `ProductForm.jsx`; units shown everywhere via `format.js::fmtQty` | `tests/test_units.py` (12 tests: kadogo sale, low stock with decimals, pieces stay whole, 3-decimal limit, unit change rules, messages, reports and CSV); E2E |
 | FR1.3 View catalogue | `list_products` (search, category, low-stock, sort, paging), `Products.jsx` | `test_fr1_3_search_and_filter` |
 | FR2.1 Stock in | `services/stock_service.py::record_movement`, `RecordStock.jsx` | `test_fr2_1_stock_in_increases` |
 | FR2.2 Stock out + negative rule | `record_movement` (row lock, admin-only override, 409) | `test_fr2_2_stock_out_decreases`, `test_fr2_2_negative_stock_rejected_for_staff_even_with_override`, `test_fr2_2_admin_without_override_rejected`, `test_fr2_2_admin_override_allows_negative_and_is_flagged`, `test_simultaneous_stock_outs_never_oversell` (MySQL); E2E admin override dialog, staff rejection |
@@ -76,6 +77,7 @@ The rubric grades the prototype against the SRS, so these changes bring the SRS 
 
 **3. New functional requirements**
 - **FR1.4 Product barcodes.** A manager can attach one or more barcodes to a product. Within a business, each barcode belongs to one product; a duplicate is rejected, naming the product that has it.
+- **FR1.5 Units of measure.** Each product is sold by piece, kilogram, gram, litre, millilitre or metre (SI symbols). Pieces are whole numbers; the other units accept up to three decimals, so loose (kadogo) sales such as 0.25 kg of sugar can be recorded. Prices are per unit (e.g. Ksh 170 / kg). Totals across products (dashboard chart, reports) are shown in Ksh, because units can't be added together.
 - **FR2.5 Scan to record.** Users can select a product by scanning its barcode with a USB/Bluetooth scanner or a device camera. An unknown barcode shows a message; managers can add a product with that barcode.
 - **FR4.3 Business signup.** A visitor can create a business by giving the business name, their name, email and password. They become its manager and are logged in.
 - **FR4.4 Invite links.** A manager can create a single-use invite link for a Staff or Manager role, optionally limited to one email, expiring after 1–30 days. The recipient sets their own name and password and joins that business. Managers can see and cancel pending links.
@@ -107,6 +109,7 @@ The rubric grades the prototype against the SRS, so these changes bring the SRS 
   - add `ProductBarcode` (Product 1 to many);
   - add attribute `StockMovement.source`;
   - add `ActivityLog` (Business 1 to many; User 1 to many as actor);
+  - add `Product.unit`; `current_stock`, `reorder_threshold`, `StockMovement.quantity` and `stock_after` become decimals;
   - `User.role` becomes SYSTEM_ADMIN / MANAGER / STAFF, and `User.business` is optional (none for a System Admin).
 - **Use case diagram:**
   - Visitor: *Create business*, *Join by invite*.

@@ -1,4 +1,6 @@
-"""Dashboard trends: daily units in/out, fastest movers and stock value by category."""
+"""Dashboard trends: daily value in/out, fastest movers and stock value by category.
+
+Totals are in Ksh (quantity x selling price) because products use different units."""
 from datetime import date
 
 
@@ -24,23 +26,23 @@ class TestDashboardTrends:
         move(client, staff_h, product["id"], "OUT", 3)
         move(client, admin_h, product["id"], "IN", 10)
         today = trends(client, admin_h)["days"][-1]
-        # opening stock of 20 is also today's stock in
-        assert (today["qty_in"], today["qty_out"]) == (30, 3)
+        # opening stock of 20 is also today's stock in; price is 45.00
+        assert (today["value_in"], today["value_out"]) == (30 * 45, 3 * 45)
 
-    def test_top_movers_ranked_by_units_out(self, client, admin_h, product):
+    def test_top_movers_ranked_by_value_sold(self, client, admin_h, product):
         other = client.post("/api/products", headers=admin_h, json={
             "sku": "gro-001", "name": "Sugar 1kg", "category_id": 1, "unit_price": "175.00",
             "reorder_threshold": 5, "initial_stock": 30,
         }).json()
-        move(client, admin_h, product["id"], "OUT", 2)
-        move(client, admin_h, other["id"], "OUT", 9)
+        move(client, admin_h, product["id"], "OUT", 10)  # 10 x 45 = 450
+        move(client, admin_h, other["id"], "OUT", 3)     # 3 x 175 = 525, fewer units but more money
         movers = trends(client, admin_h)["top_movers"]
         assert [m["sku"] for m in movers] == ["GRO-001", "BEV-001"]
-        assert movers[0]["qty_out"] == 9
+        assert (movers[0]["qty_out"], movers[0]["value_out"], movers[0]["unit"]) == (3, 525, "PIECE")
 
     def test_stock_value_by_category_admin_only(self, client, admin_h, staff_h, product):
         cats = trends(client, admin_h)["by_category"]
-        assert len(cats) == 1 and cats[0]["value"] == "900.00" and cats[0]["units"] == 20
+        assert len(cats) == 1 and cats[0]["value"] == "900.00" and cats[0]["products"] == 1
         assert trends(client, staff_h)["by_category"] == []
 
     def test_days_must_be_between_7_and_90(self, client, admin_h):
@@ -53,5 +55,5 @@ class TestDashboardTrends:
     def test_other_business_sees_nothing(self, client, admin_h, other_h, product):
         move(client, admin_h, product["id"], "OUT", 4)
         t = trends(client, other_h)
-        assert sum(d["qty_in"] + d["qty_out"] for d in t["days"]) == 0
+        assert sum(d["value_in"] + d["value_out"] for d in t["days"]) == 0
         assert t["top_movers"] == [] and t["by_category"] == []

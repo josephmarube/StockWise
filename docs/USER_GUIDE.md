@@ -120,3 +120,7 @@ StockWise always keeps at least one active manager, and you cannot disable your 
 
 Your business name is shown on the **Users** page. To change it, contact StockWise support.
 
+## Loose goods (sold by weight, volume or length)
+
+When adding a product, choose how it is **sold by**: piece, kilogram, gram, litre, millilitre or metre. For loose sugar, choose kilogram and enter the price per kg. On **Record stock**, type any amount, for example **0.25** for a quarter kilo; the **+** and **−** buttons move in sensible steps (0.25 kg, 50 g, 0.5 m). Products sold by the piece still take whole numbers.
+

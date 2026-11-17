@@ -32,3 +32,31 @@ export function stockState(p) {
   if (p.current_stock <= p.reorder_threshold) return 'low'
   return 'ok'
 }
+
+// ---------- Units of measure (SI symbols) ----------
+export const UNITS = [
+  { value: 'PIECE', symbol: 'pc', label: 'Piece (count)', step: 1, whole: true },
+  { value: 'KG', symbol: 'kg', label: 'Kilogram (kg)', step: 0.25 },
+  { value: 'G', symbol: 'g', label: 'Gram (g)', step: 50 },
+  { value: 'L', symbol: 'L', label: 'Litre (L)', step: 0.25 },
+  { value: 'ML', symbol: 'mL', label: 'Millilitre (mL)', step: 50 },
+  { value: 'M', symbol: 'm', label: 'Metre (m)', step: 0.5 },
+]
+const UNIT_BY = Object.fromEntries(UNITS.map((u) => [u.value, u]))
+export const unitOf = (unit) => UNIT_BY[unit] || UNIT_BY.PIECE
+
+// Quantity with its unit: pieces show the bare number ("24"), others the SI symbol ("9.75 kg").
+export function fmtQty(q, unit) {
+  const u = unitOf(unit)
+  return u.whole ? fmtNum(q) : `${fmtNum(q)} ${u.symbol}`
+}
+
+// Valid quantity for the unit: > 0, whole for pieces, at most 3 decimals otherwise.
+export function validQty(text, unit) {
+  if (!/^\d+(\.\d{1,3})?$/.test(String(text).trim())) return false
+  const n = Number(text)
+  return n > 0 && n <= 1000000 && (!unitOf(unit).whole || Number.isInteger(n))
+}
+
+// Price per unit: "Ksh 170 / kg"; plain price for pieces.
+export const fmtPricePer = (price, unit) => (unitOf(unit).whole ? fmtMoney(price) : `${fmtMoney(price)} / ${unitOf(unit).symbol}`)

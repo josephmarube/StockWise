@@ -33,6 +33,7 @@ from app.models import (
     Role,
     StockMovement,
     Supplier,
+    Unit,
     User,
     utcnow,
 )
@@ -44,7 +45,7 @@ class ShopSpec:
     name: str
     users: list            # (name, email, role)
     suppliers: list        # (name, contact, phone, email, address)
-    products: list         # (sku, name, category, price KES, threshold, opening, [supplier idx])
+    products: list         # (sku, name, category, price KES, threshold, opening, [supplier idx], unit="PIECE")
     end_level: dict = field(default_factory=dict)  # sku -> final stock, so alerts show
     barcode_base: int = 1000
 
@@ -78,6 +79,10 @@ SHOPS = [
             ("HOU-003", "Toilet Paper (10 pack)", "Household", "450.00", 6, 18, [1]),
             ("STA-001", "Exercise Book 96pg", "Stationery", "50.00", 30, 150, [3]),
             ("STA-002", "Ballpoint Pen (blue)", "Stationery", "20.00", 50, 200, [3]),
+            # Loose goods, sold by weight or volume (kadogo)
+            ("GRO-005", "Sugar (loose)", "Groceries", "170.00", 10, 50, [1], "KG"),
+            ("GRO-006", "Rice (loose)", "Groceries", "150.00", 10, 40, [1], "KG"),
+            ("HOU-004", "Paraffin", "Household", "180.00", 5, 30, [0], "L"),
         ],
         end_level={"BEV-002": 0, "DAI-002": 7, "HOU-003": 4, "GRO-003": 9},
         barcode_base=1000,
@@ -99,6 +104,9 @@ SHOPS = [
             ("PNT-002", "Paint Brush 2in", "Paint", "150.00", 10, 30, [1]),
             ("LCK-001", "Padlock 50mm", "Security", "650.00", 6, 15, []),
             ("PIP-001", "PVC Pipe 1/2in (6m)", "Plumbing", "420.00", 10, 25, []),
+            # Sold by length or weight
+            ("ELE-001", "Electrical Cable 1.5mm", "Electrical", "95.00", 20, 100, [], "M"),
+            ("NAI-002", "Roofing Nails (loose)", "Fasteners", "260.00", 5, 25, [0], "KG"),
         ],
         end_level={"PNT-001": 3, "LCK-001": 0},
         barcode_base=2000,
@@ -153,11 +161,13 @@ def seed_shop(db, spec: ShopSpec, rng: random.Random, hashes: dict) -> None:
         db.add(StockMovement(business_id=bid, product_id=p.id, user_id=user.id, type=typ, quantity=qty,
                              stock_after=p.current_stock, note=note, created_at=t, source=source))
 
-    for n, (sku, name, cat, price, thr, opening, sidx) in enumerate(spec.products, start=1):
+    for n, (sku, name, cat, price, thr, opening, sidx, *rest) in enumerate(spec.products, start=1):
+        unit = Unit(rest[0]) if rest else Unit.PIECE
         p = Product(
-            business_id=bid, sku=sku, name=name, category=cats[cat], unit_price=Decimal(price),
+            business_id=bid, sku=sku, name=name, category=cats[cat], unit_price=Decimal(price), unit=unit,
             reorder_threshold=thr, current_stock=0, suppliers=[sups[i] for i in sidx],
-            barcodes=[ProductBarcode(business_id=bid, code=ean13(spec.barcode_base + n))],
+            # loose goods have no printed barcode
+            barcodes=[ProductBarcode(business_id=bid, code=ean13(spec.barcode_base + n))] if unit.whole_only else [],
         )
         db.add(p)
         db.flush()
@@ -171,7 +181,8 @@ def seed_shop(db, spec: ShopSpec, rng: random.Random, hashes: dict) -> None:
                 move(p, rng.choice(users), MovementType.IN, opening - p.current_stock + rng.randint(0, 5),
                      "Supplier delivery", t)
             else:
-                qty = rng.randint(1, max(2, opening // 12))
+                qty = (rng.randint(1, max(2, opening // 12)) if unit.whole_only
+                       else Decimal(rng.choice(["0.25", "0.5", "0.5", "1", "1.5", "2", "3"])))
                 if qty > p.current_stock:
                     continue
                 move(p, rng.choice(users), MovementType.OUT, qty,

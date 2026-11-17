@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useDebounced } from '../lib/hooks'
-import { fmtNum, stockState } from '../lib/format'
+import { fmtQty, stockState } from '../lib/format'
 import BarcodeScanner from './BarcodeScanner'
 import { Icon, ProductAvatar } from './ui'
 
@@ -103,7 +103,7 @@ export default function ProductPicker({ value, onChange, error, autoFocus, input
       <div className="picked">
         <div className="with-avatar"><ProductAvatar name={value.name} categoryId={value.category?.id || 0} /><div>
           <div className="picked-name">{value.name}</div>
-          <div className="picked-meta">{value.sku} · {fmtNum(value.current_stock)} in stock</div>
+          <div className="picked-meta">{value.sku} · {fmtQty(value.current_stock, value.unit)} in stock</div>
         </div></div>
         <button type="button" className="btn btn-ghost btn-sm"
           onClick={() => { setOpen(true); setTimeout(() => searchRef.current?.focus(), 0) }}>Change</button>
@@ -147,7 +147,7 @@ export default function ProductPicker({ value, onChange, error, autoFocus, input
               className={`picker-opt ${i === active ? 'is-active' : ''}`}
               onMouseDown={(e) => { e.preventDefault(); pick(p) }} onMouseEnter={() => setActive(i)}>
               <span className="with-avatar"><ProductAvatar name={p.name} categoryId={p.category.id} size={30} /><span className="picker-name">{p.name}<small>{p.sku}</small></span></span>
-              <span className={`picker-stock stock-txt-${stockState(p)}`}>{fmtNum(p.current_stock)}</span>
+              <span className={`picker-stock stock-txt-${stockState(p)}`}>{fmtQty(p.current_stock, p.unit)}</span>
             </li>
           ))}
         </ul>

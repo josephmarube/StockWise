@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi, useDebounced } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
-import { fmtMoney, fmtNum } from '../lib/format'
+import { fmtMoney, fmtNum, fmtPricePer, fmtQty } from '../lib/format'
 import ProductForm from '../components/ProductForm'
 import { Empty, ErrorNote, Icon, Pager, ProductAvatar, SkeletonRows, StockBadge, StockBar } from '../components/ui'
 
@@ -106,9 +106,9 @@ export default function Products() {
                     </div>
                   </td>
                   <td className="hide-sm">{p.category.name}</td>
-                  <td className="num hide-sm">{fmtMoney(p.unit_price)}</td>
+                  <td className="num hide-sm">{fmtPricePer(p.unit_price, p.unit)}</td>
                   <td className="num">
-                    <span className="stock-num">{fmtNum(p.current_stock)}</span>
+                    <span className="stock-num">{fmtQty(p.current_stock, p.unit)}</span>
                     <StockBadge product={p} />
                   </td>
                   <td className="bar-col hide-sm"><StockBar product={p} compact /></td>

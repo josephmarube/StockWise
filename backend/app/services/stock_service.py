@@ -7,12 +7,13 @@ Implements the sequence diagram in SRS Appendix B.3:
   -> commit, or roll back on any failure.
 """
 from dataclasses import dataclass
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from ..models import MovementSource, MovementType, Product, Role, StockMovement, User
+from ..models import MovementSource, MovementType, Product, Role, StockMovement, User, fmt_qty
 
 
 class StockError(Exception):
@@ -34,11 +35,15 @@ class ProductArchived(StockError):
 class InsufficientStock(StockError):
     status_code = 409
 
-    def __init__(self, detail: str, available: int, requested: int, can_override: bool):
+    def __init__(self, detail: str, available: Decimal, requested: Decimal, can_override: bool):
         super().__init__(detail)
         self.available = available
         self.requested = requested
         self.can_override = can_override
+
+
+class InvalidQuantity(StockError):
+    status_code = 422
 
 
 class StockPersistenceError(StockError):
@@ -58,12 +63,13 @@ def record_movement(
     user: User,
     product_id: int,
     type_: MovementType,
-    quantity: int,
+    quantity: Decimal | int,
     note: str | None = None,
     override: bool = False,
     allow_archived: bool = False,
     source: MovementSource = MovementSource.MANUAL,
 ) -> MovementOutcome:
+    quantity = Decimal(quantity)
     if quantity <= 0:
         raise StockError("Quantity must be greater than zero")
 
@@ -79,13 +85,17 @@ def record_movement(
             raise ProductNotFound("Product not found")
         if product.archived and not allow_archived:
             raise ProductArchived("Product is archived; restore it before recording stock")
+        if product.unit.whole_only and quantity != quantity.to_integral_value():
+            raise InvalidQuantity(f"{product.name} is counted in pieces, so use a whole number")
 
         used_override = False
         if type_ == MovementType.OUT and product.current_stock - quantity < 0:
             is_admin = user.role == Role.MANAGER
             if not (is_admin and override):
+                u = "" if product.unit.whole_only else f" {product.unit.symbol}"
                 raise InsufficientStock(
-                    f"Insufficient stock: {product.current_stock} available, {quantity} requested",
+                    f"Insufficient stock: {fmt_qty(product.current_stock)}{u} available, "
+                    f"{fmt_qty(quantity)}{u} requested",
                     available=product.current_stock,
                     requested=quantity,
                     can_override=is_admin,

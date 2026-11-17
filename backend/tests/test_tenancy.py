@@ -59,7 +59,7 @@ class TestCannotSeeOtherBusiness:
 
     def test_dashboard(self, client, other_h, product):
         d = client.get("/api/dashboard", headers=other_h).json()
-        assert d["active_products"] == 0 and d["total_units"] == 0 and d["recent_movements"] == [] and d["low_stock"] == []
+        assert d["active_products"] == 0 and d["stock_value"] == "0.00" and d["recent_movements"] == [] and d["low_stock"] == []
 
     def test_reports_audit_and_csv(self, client, other_h, admin_h, product):
         assert client.get("/api/reports/stock", headers=other_h).json()["rows"] == []
