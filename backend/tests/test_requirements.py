@@ -102,7 +102,11 @@ class TestFR4Auth:
         sid = [u for u in client.get("/api/users", headers=admin_h).json() if u["role"] == "STAFF"][0]["id"]
         client.patch(f"/api/users/{sid}", headers=admin_h, json={"is_active": False})
         assert client.get("/api/products", headers=staff_h).status_code == 401
-        assert client.post("/api/auth/login", json=STAFF).status_code == 401
+        r = client.post("/api/auth/login", json=STAFF)
+        assert r.status_code == 403 and "disabled" in r.json()["detail"]
+        # a wrong password still gets the generic message, so nothing is revealed
+        wrong = client.post("/api/auth/login", json={**STAFF, "password": new_password()})
+        assert wrong.status_code == 401 and wrong.json()["detail"] == "Invalid email or password"
 
     def test_last_admin_cannot_be_demoted(self, client, admin_h):
         me = client.get("/api/auth/me", headers=admin_h).json()

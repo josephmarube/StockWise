@@ -107,7 +107,7 @@ class TestPlatformOversight:
         bid = other_business_id(client, other_h)
         assert client.patch(f"/api/platform/businesses/{bid}", headers=sys_h, json={"is_active": False}).status_code == 200
         assert client.get("/api/products", headers=other_h).status_code == 401
-        assert client.post("/api/auth/login", json=OTHER_ADMIN).status_code == 401
+        assert client.post("/api/auth/login", json=OTHER_ADMIN).status_code == 403
         assert client.patch(f"/api/platform/businesses/{bid}", headers=sys_h, json={"is_active": True}).status_code == 200
         h = {"Authorization": "Bearer " + client.post("/api/auth/login", json=OTHER_ADMIN).json()["access_token"]}
         actions = [a["action"] for a in activity(client, h)]

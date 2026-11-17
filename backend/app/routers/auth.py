@@ -13,6 +13,8 @@ from .users import EMAIL_TAKEN, email_taken
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 GENERIC_LOGIN_ERROR = "Invalid email or password"
+ACCOUNT_DISABLED = "Your account has been disabled. Ask your manager to turn it back on."
+BUSINESS_DEACTIVATED = "Your business has been deactivated by StockWise. Contact StockWise support to reactivate it."
 
 
 def issue_token(user: User) -> TokenResponse:
@@ -29,12 +31,13 @@ def login(body: LoginRequest, db: DbSession):
     if user is None:
         dummy_verify()  # keep response time similar for unknown emails
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, GENERIC_LOGIN_ERROR)
-    if (
-        not verify_password(body.password, user.password_hash)
-        or not user.is_active
-        or (user.business is not None and not user.business.is_active)
-    ):
+    if not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, GENERIC_LOGIN_ERROR)
+    # Only someone who knows the password learns why they can't get in.
+    if not user.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, ACCOUNT_DISABLED)
+    if user.business is not None and not user.business.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, BUSINESS_DEACTIVATED)
     return issue_token(user)
 
 
