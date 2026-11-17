@@ -106,6 +106,7 @@ class User(Base):
     role: Mapped[Role] = mapped_column(Enum(Role, name="role"), default=Role.STAFF)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     business: Mapped[Business | None] = relationship()
     movements: Mapped[list[StockMovement]] = relationship(back_populates="user")

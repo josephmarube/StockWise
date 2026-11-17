@@ -121,6 +121,7 @@ def accept(body: InviteAccept, db: DbSession):
         email=email,
         password_hash=hash_password(body.password),
         role=inv.role,
+        last_login_at=utcnow(),
     )
     inv.accepted_at = utcnow()
     db.add(user)

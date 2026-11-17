@@ -174,8 +174,7 @@ class PlatformBusiness(BaseModel):
     managers: int
     staff: int
     products: int
-    movements_30d: int
-    last_activity: UTCDateTime | None
+    last_active: UTCDateTime | None  # latest login by anyone in the business
 
 
 class PlatformBusinessUpdate(BaseModel):

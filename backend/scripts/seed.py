@@ -123,7 +123,8 @@ def seed_shop(db, spec: ShopSpec, rng: random.Random, hashes: dict) -> None:
     db.add(biz)
     db.flush()
     bid = biz.id
-    users = [User(business_id=bid, name=n, email=e, password_hash=hashes[r], role=r, created_at=joined)
+    users = [User(business_id=bid, name=n, email=e, password_hash=hashes[r], role=r, created_at=joined,
+                  last_login_at=utcnow() - timedelta(hours=rng.randint(1, 30)))
              for n, e, r in spec.users]
     cats = {c: Category(business_id=bid, name=c) for c in sorted({p[2] for p in spec.products})}
     sups = [Supplier(business_id=bid, name=n, contact_person=c, phone=ph, email=e, address=a) for n, c, ph, e, a in spec.suppliers]

@@ -1,7 +1,7 @@
 """System Admin area: oversight of all businesses using StockWise.
 
-System Admins see metadata only (names, dates, counts). They never see a business's
-products, prices, suppliers or stock. Every change they make to a business is written
+System Admins see metadata only (names, dates, counts, last login). They never see a
+business's products, prices, suppliers, stock or how much it trades. Every change they make to a business is written
 to that business's activity log, so its managers can see it.
 """
 from datetime import timedelta
@@ -11,19 +11,19 @@ from sqlalchemy import case, func, select
 
 from ..activity import record
 from ..deps import DbSession, SystemAdminUser
-from ..models import ActivityLog, Business, Product, Role, StockMovement, User, utcnow
+from ..models import ActivityLog, Business, Product, Role, User, utcnow
 from ..schemas import ActivityOut, ActivityPage, PlatformBusiness, PlatformBusinessUpdate, PlatformSummary
 
 router = APIRouter(prefix="/api/platform", tags=["platform"])
 
 
 def _rows(db, business_ids=None, q: str | None = None) -> list[PlatformBusiness]:
-    since = utcnow() - timedelta(days=30)
     users = (
         select(
             User.business_id.label("bid"),
             func.sum(case((User.role == Role.MANAGER, 1), else_=0)).label("managers"),
             func.sum(case((User.role == Role.STAFF, 1), else_=0)).label("staff"),
+            func.max(User.last_login_at).label("last_login"),
         )
         .where(User.business_id.is_not(None))
         .group_by(User.business_id)
@@ -35,27 +35,16 @@ def _rows(db, business_ids=None, q: str | None = None) -> list[PlatformBusiness]
         .group_by(Product.business_id)
         .subquery()
     )
-    moves = (
-        select(
-            StockMovement.business_id.label("bid"),
-            func.sum(case((StockMovement.created_at >= since, 1), else_=0)).label("recent"),
-            func.max(StockMovement.created_at).label("last"),
-        )
-        .group_by(StockMovement.business_id)
-        .subquery()
-    )
     stmt = (
         select(
             Business,
             func.coalesce(users.c.managers, 0),
             func.coalesce(users.c.staff, 0),
             func.coalesce(products.c.n, 0),
-            func.coalesce(moves.c.recent, 0),
-            moves.c.last,
+            users.c.last_login,
         )
         .outerjoin(users, users.c.bid == Business.id)
         .outerjoin(products, products.c.bid == Business.id)
-        .outerjoin(moves, moves.c.bid == Business.id)
         .order_by(Business.created_at.desc(), Business.id.desc())
     )
     if business_ids is not None:
@@ -65,9 +54,9 @@ def _rows(db, business_ids=None, q: str | None = None) -> list[PlatformBusiness]
     return [
         PlatformBusiness(
             id=b.id, name=b.name, is_active=b.is_active, created_at=b.created_at,
-            managers=int(m), staff=int(s), products=int(p), movements_30d=int(r), last_activity=last,
+            managers=int(m), staff=int(s), products=int(p), last_active=last,
         )
-        for b, m, s, p, r, last in db.execute(stmt).all()
+        for b, m, s, p, last in db.execute(stmt).all()
     ]
 
 

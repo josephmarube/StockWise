@@ -25,7 +25,7 @@ function Businesses() {
       <header className="page-head">
         <div>
           <h1>Businesses</h1>
-          <p className="muted">You see names, dates and counts only. Every change you make here is shown in that business's activity log.</p>
+          <p className="muted">You see names, dates, counts and last login only. Every change you make here is shown in that business's activity log.</p>
         </div>
       </header>
 
@@ -57,8 +57,8 @@ function Businesses() {
             <thead>
               <tr>
                 <th>Business</th><th className="num">Managers</th><th className="num">Staff</th>
-                <th className="num">Products</th><th className="num hide-sm">Entries (30 days)</th>
-                <th className="hide-sm">Last stock entry</th><th>Status</th><th><span className="sr-only">Actions</span></th>
+                <th className="num">Products</th>
+                <th className="hide-sm">Last active</th><th>Status</th><th><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -68,8 +68,7 @@ function Businesses() {
                   <td className="num">{b.managers}</td>
                   <td className="num">{b.staff}</td>
                   <td className="num">{fmtNum(b.products)}</td>
-                  <td className="num hide-sm">{fmtNum(b.movements_30d)}</td>
-                  <td className="hide-sm">{b.last_activity ? fmtAgo(b.last_activity) : '—'}</td>
+                  <td className="hide-sm" title="Most recent login by anyone in the business">{b.last_active ? fmtAgo(b.last_active) : 'Never'}</td>
                   <td><span className={`badge ${b.is_active ? 'badge-ok' : 'badge-muted'}`}>{b.is_active ? 'Active' : 'Deactivated'}</span></td>
                   <td className="row-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditing({ biz: b, mode: 'rename' })}>Rename</button>
