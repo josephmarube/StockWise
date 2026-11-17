@@ -78,13 +78,20 @@ class TestSystemAdminAccount:
 
 
 class TestPlatformOversight:
-    def test_lists_businesses_with_metadata_only(self, client, sys_h, product):
+    def test_lists_businesses_with_metadata_only(self, client, sys_h, admin_h, product):
         rows = client.get("/api/platform/businesses", headers=sys_h).json()
         shop = next(b for b in rows if b["name"] == "Test Shop")
         assert (shop["managers"], shop["staff"], shop["products"]) == (1, 1, 1)
-        assert shop["movements_30d"] == 1 and shop["is_active"] is True
-        assert set(shop) == {"id", "name", "is_active", "created_at", "managers", "staff",
-                             "products", "movements_30d", "last_activity"}
+        assert shop["is_active"] is True
+        # last login only: nothing about the shop's stock or trading
+        assert set(shop) == {"id", "name", "is_active", "created_at", "managers", "staff", "products", "last_active"}
+
+    def test_last_active_is_the_latest_login(self, client, sys_h, admin_h):
+        def last_active(name):
+            rows = client.get("/api/platform/businesses", headers=sys_h).json()
+            return next(b for b in rows if b["name"] == name)["last_active"]
+        assert last_active("Test Shop") is not None  # admin_h logged in
+        assert last_active("Other Shop") is None      # nobody from it has logged in yet
 
     def test_summary(self, client, sys_h):
         s = client.get("/api/platform/summary", headers=sys_h).json()

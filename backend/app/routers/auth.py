@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 
 from ..activity import record
 from ..deps import DbSession, SignedInUser
-from ..models import Business, Role, User
+from ..models import Business, Role, User, utcnow
 from ..ratelimit import limit
 from ..schemas import LoginRequest, MeOut, SignupRequest, TokenResponse
 from ..security import create_access_token, dummy_verify, hash_password, verify_password
@@ -38,6 +38,8 @@ def login(body: LoginRequest, db: DbSession):
         raise HTTPException(status.HTTP_403_FORBIDDEN, ACCOUNT_DISABLED)
     if user.business is not None and not user.business.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, BUSINESS_DEACTIVATED)
+    user.last_login_at = utcnow()
+    db.commit()
     return issue_token(user)
 
 
@@ -59,6 +61,7 @@ def signup(body: SignupRequest, db: DbSession):
         email=email,
         password_hash=hash_password(body.password),
         role=Role.MANAGER,
+        last_login_at=utcnow(),
     )
     db.add_all([business, user])
     db.flush()

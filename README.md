@@ -101,7 +101,7 @@ Open http://localhost:5173. Vite proxies `/api` to port 8000.
 
 These are demo passwords for local use. For a public deployment, seed with `SEED_PASSWORD` set: every demo account then uses that password instead.
 
-**Roles.** *Staff* record stock and view products. *Managers* also manage products, suppliers, reports, people and see the activity log. *System Admins* are StockWise staff: they see a list of businesses with counts and dates (never products, prices or stock), can rename, deactivate or reactivate a business, and every such action appears in that business's activity log. There is no web signup for System Admins; create one from the server:
+**Roles.** *Staff* record stock and view products. *Managers* also manage products, suppliers, reports, people and see the activity log. *System Admins* are StockWise staff: they see a list of businesses with counts, dates and when someone last logged in (never products, prices, stock or sales activity), can rename, deactivate or reactivate a business, and every such action appears in that business's activity log. There is no web signup for System Admins; create one from the server:
 
 ```bash
 cd backend
@@ -169,7 +169,7 @@ Measured during development: 10 concurrent users, 1,000 requests, p95 of 83–11
 - **Scanner detection is by typing speed.** USB scanners "type" a code in a few milliseconds; keystrokes averaging under 35 ms are recorded as `SCANNER`, slower typing as `MANUAL`.
 - **Opening stock is a movement.** When a product is created with initial stock, that stock is recorded as a stock-in, so every unit can be traced.
 - **Roles are checked against the database on every request**, not just read from the JWT. Demoting or disabling a user takes effect immediately.
-- **Three roles with a hard boundary.** Managers and Staff belong to one business. System Admins belong to none (a database CHECK constraint enforces this), are rejected by every shop endpoint, and use `/api/platform` only, which returns counts and dates, never a shop's products, prices or stock. Only a System Admin can rename a business, so a shop can't rename itself to pose as another one.
+- **Three roles with a hard boundary.** Managers and Staff belong to one business. System Admins belong to none (a database CHECK constraint enforces this), are rejected by every shop endpoint, and use `/api/platform` only, which returns counts, dates and last login, never a shop's products, prices, stock or sales activity. Only a System Admin can rename a business, so a shop can't rename itself to pose as another one.
 - **Activity log with before/after values.** Every change to products, suppliers, categories, people, invites and the business is written to `activity_logs` in the same transaction as the change (who, role, what, `{field: [before, after]}`). Passwords are recorded only as "reset". Actions a System Admin takes on a business are logged against that business and highlighted in its log. Stock in/out keeps its own audit trail (FR7.1).
 - **Timestamps are stored in UTC.** Report date ranges and CSV times use the business timezone (`BUSINESS_TIMEZONE`, default Africa/Nairobi).
 - **CSV exports neutralise spreadsheet formulas.** A product named `=HYPERLINK(...)` cannot run in Excel.
