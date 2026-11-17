@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { stockState, fmtNum } from '../lib/format'
+import { stockState, fmtNum, fmtQty } from '../lib/format'
 
 /* ---------- Icons (inline, stroke-based) ---------- */
 const paths = {
@@ -142,7 +142,7 @@ export function StockBar({ product, compact = false }) {
   const mark = Math.min(100, (t / scale) * 100)
   return (
     <div className={`stockbar stock-${state} ${compact ? 'compact' : ''}`}
-      title={`${fmtNum(s)} in stock, reorder at ${fmtNum(t)}`}>
+      title={`${fmtQty(s, product.unit)} in stock, reorder at ${fmtQty(t, product.unit)}`}>
       <div className="stockbar-track">
         <div className="stockbar-fill" style={{ width: `${fill}%` }} />
         {t > 0 && <div className="stockbar-mark" style={{ left: `${mark}%` }} />}

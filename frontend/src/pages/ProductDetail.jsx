@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useAuth } from '../lib/auth'
-import { fmtDateFull, fmtMoney, fmtNum } from '../lib/format'
+import { fmtDateFull, fmtMoney, fmtNum, fmtPricePer, fmtQty } from '../lib/format'
 import ProductForm from '../components/ProductForm'
 import { Confirm, Empty, ErrorNote, Icon, Modal, Pager, ProductAvatar, Skeleton, SkeletonRows, SourceTag, Spinner, StockBadge, StockBar, TypeTag, useToast } from '../components/ui'
 
@@ -63,13 +63,13 @@ export default function ProductDetail() {
       <section className="detail-grid">
         <div className="panel stock-panel">
           <div className="stock-big">
-            <span className="stock-big-n">{fmtNum(p.current_stock)}</span>
+            <span className="stock-big-n">{fmtQty(p.current_stock, p.unit)}</span>
             <span className="stock-big-l">in stock <StockBadge product={p} /></span>
           </div>
           <StockBar product={p} />
           <dl className="facts">
-            <div><dt>Reorder level</dt><dd>{fmtNum(p.reorder_threshold)}</dd></div>
-            <div><dt>Unit price</dt><dd>{fmtMoney(p.unit_price)}</dd></div>
+            <div><dt>Reorder level</dt><dd>{fmtQty(p.reorder_threshold, p.unit)}</dd></div>
+            <div><dt>Price</dt><dd>{fmtPricePer(p.unit_price, p.unit)}</dd></div>
             <div><dt>Stock value</dt><dd>{fmtMoney(p.current_stock * Number(p.unit_price))}</dd></div>
           </dl>
           <div className="barcodes-line">
@@ -111,8 +111,8 @@ export default function ProductDetail() {
                   <tr key={m.id}>
                     <td className="nowrap">{fmtDateFull(m.created_at)}</td>
                     <td><span className="tags"><TypeTag type={m.type} override={m.override} /><SourceTag source={m.source} /></span></td>
-                    <td className={`num qty-${m.type.toLowerCase()}`}>{m.type === 'IN' ? '+' : '−'}{fmtNum(m.quantity)}</td>
-                    <td className="num">{fmtNum(m.stock_after)}</td>
+                    <td className={`num qty-${m.type.toLowerCase()}`}>{m.type === 'IN' ? '+' : '−'}{fmtQty(m.quantity, p.unit)}</td>
+                    <td className="num">{fmtQty(m.stock_after, p.unit)}</td>
                     <td className="hide-sm">{m.user.name}</td>
                     <td className="hide-sm muted">{m.note}</td>
                   </tr>

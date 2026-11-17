@@ -6,7 +6,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, PlainSerializer, field_validator
 
-from .models import MovementSource, MovementType, Role
+from .models import MovementSource, MovementType, Role, Unit
 
 
 def _as_utc(d: datetime) -> str:
@@ -17,6 +17,17 @@ def _as_utc(d: datetime) -> str:
 
 
 UTCDateTime = Annotated[datetime, PlainSerializer(_as_utc, return_type=str)]
+
+
+def _as_number(d) -> int | float:
+    # Quantities go out as JSON numbers: 24 for whole amounts, 0.25 for fractions.
+    d = Decimal(d)
+    return int(d) if d == d.to_integral_value() else float(d)
+
+
+# A quantity in the product's unit: up to 3 decimal places (e.g. 0.25 kg, 1.5 m).
+Qty = Annotated[Decimal, PlainSerializer(_as_number, return_type=float)]
+Money = Annotated[Decimal, PlainSerializer(lambda d: float(d), return_type=float)]
 
 
 class ORM(BaseModel):
@@ -294,8 +305,9 @@ class ProductCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     category_id: int = Field(gt=0)
     unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
-    reorder_threshold: int = Field(ge=0, le=1_000_000)
-    initial_stock: int = Field(default=0, ge=0, le=1_000_000)
+    unit: Unit = Unit.PIECE
+    reorder_threshold: Decimal = Field(ge=0, le=1_000_000, decimal_places=3)
+    initial_stock: Decimal = Field(default=Decimal(0), ge=0, le=1_000_000, decimal_places=3)
     supplier_ids: list[int] = Field(default_factory=list)
     barcodes: list[str] = Field(default_factory=list)
 
@@ -317,7 +329,8 @@ class ProductUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     category_id: int | None = Field(default=None, gt=0)
     unit_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
-    reorder_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    unit: Unit | None = None
+    reorder_threshold: Decimal | None = Field(default=None, ge=0, le=1_000_000, decimal_places=3)
     barcodes: list[str] | None = None
 
     _b = field_validator("barcodes")(_clean_barcodes)
@@ -338,8 +351,9 @@ class ProductOut(ORM):
     name: str
     category: CategoryOut
     unit_price: Decimal
-    reorder_threshold: int
-    current_stock: int
+    unit: Unit
+    reorder_threshold: Qty
+    current_stock: Qty
     archived: bool
     low_stock: bool
     barcodes: list[str] = Field(default_factory=list, validation_alias="barcode_codes")
@@ -357,7 +371,7 @@ class ProductPage(BaseModel):
 class MovementCreate(BaseModel):
     product_id: int = Field(gt=0)
     type: MovementType
-    quantity: int = Field(gt=0, le=1_000_000)
+    quantity: Decimal = Field(gt=0, le=1_000_000, decimal_places=3)
     note: str | None = Field(default=None, max_length=500)
     override: bool = False
     source: MovementSource = MovementSource.MANUAL
@@ -373,6 +387,7 @@ class ProductBrief(ORM):
     id: int
     sku: str
     name: str
+    unit: Unit
 
 
 class MovementOut(ORM):
@@ -381,8 +396,8 @@ class MovementOut(ORM):
     user: UserBrief
     type: MovementType
     source: MovementSource
-    quantity: int
-    stock_after: int
+    quantity: Qty
+    stock_after: Qty
     override: bool
     note: str | None
     created_at: UTCDateTime
@@ -390,7 +405,7 @@ class MovementOut(ORM):
 
 class MovementResult(BaseModel):
     movement: MovementOut
-    current_stock: int
+    current_stock: Qty
     low_stock: bool
 
 
@@ -402,7 +417,6 @@ class MovementPage(BaseModel):
 # ---------- Dashboard / reports ----------
 class DashboardSummary(BaseModel):
     active_products: int
-    total_units: int
     stock_value: Decimal
     low_stock_count: int
     out_of_stock_count: int
@@ -411,22 +425,26 @@ class DashboardSummary(BaseModel):
 
 
 class DayTotals(BaseModel):
+    """Value of stock in and out that day, at current selling prices. Value, not units,
+    because products are counted in different units (pieces, kg, litres, metres)."""
     date: date
-    qty_in: int
-    qty_out: int
+    value_in: Money
+    value_out: Money
 
 
 class TopMover(BaseModel):
     product_id: int
     name: str
     sku: str
-    qty_out: int
+    unit: Unit
+    qty_out: Qty
+    value_out: Money
 
 
 class CategoryValue(BaseModel):
     name: str
     value: Decimal
-    units: int
+    products: int
 
 
 class DashboardTrends(BaseModel):
@@ -441,13 +459,14 @@ class StockReportRow(BaseModel):
     name: str
     category: str
     unit_price: Decimal
-    reorder_threshold: int
-    current_stock: int
+    unit: Unit
+    reorder_threshold: Qty
+    current_stock: Qty
     stock_value: Decimal
     low_stock: bool
     archived: bool
-    qty_in: int
-    qty_out: int
+    qty_in: Qty
+    qty_out: Qty
     movement_count: int
 
 

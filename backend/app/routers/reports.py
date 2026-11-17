@@ -10,7 +10,7 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from ..deps import ManagerUser, DbSession
-from ..models import Category, MovementSource, MovementType, Product, StockMovement
+from ..models import Category, MovementSource, MovementType, Product, StockMovement, fmt_qty
 from ..schemas import MovementOut, MovementPage, StockReport, StockReportRow
 from ..timeutil import local_date_range_to_utc, to_local, today_local
 
@@ -64,13 +64,14 @@ def _build_rows(db, business_id: int, lo: datetime, hi: datetime, include_archiv
                 name=p.name,
                 category=cat,
                 unit_price=p.unit_price,
+                unit=p.unit,
                 reorder_threshold=p.reorder_threshold,
                 current_stock=p.current_stock,
                 stock_value=(Decimal(p.current_stock) * p.unit_price).quantize(Decimal("0.01")),
                 low_stock=p.is_low_stock(),
                 archived=p.archived,
-                qty_in=int(qin),
-                qty_out=int(qout),
+                qty_in=Decimal(qin),
+                qty_out=Decimal(qout),
                 movement_count=int(n),
             )
         )
@@ -118,10 +119,10 @@ def stock_report(
     movements = db.execute(_movements_stmt(admin.business_id, lo, hi).limit(500)).scalars().all()
     totals = {
         "products": len(rows),
-        "units_on_hand": sum(r.current_stock for r in rows),
         "stock_value": str(sum((r.stock_value for r in rows), Decimal("0.00"))),
-        "qty_in": sum(r.qty_in for r in rows),
-        "qty_out": sum(r.qty_out for r in rows),
+        # In Ksh at current selling prices: products use different units, so units can't be added up.
+        "value_in": str(sum((r.qty_in * r.unit_price for r in rows), Decimal("0")).quantize(Decimal("0.01"))),
+        "value_out": str(sum((r.qty_out * r.unit_price for r in rows), Decimal("0")).quantize(Decimal("0.01"))),
         "movements": sum(r.movement_count for r in rows),
         "low_stock": sum(1 for r in rows if r.low_stock and not r.archived),
     }
@@ -210,15 +211,15 @@ def export_stock_csv(
     rows = _build_rows(db, admin.business_id, lo, hi, include_archived)
     return _csv_response(
         [
-            "SKU", "Product", "Category", "Unit price", "Reorder threshold", "Current stock",
+            "SKU", "Product", "Category", "Unit", "Unit price", "Reorder threshold", "Current stock",
             "Stock value", "Low stock", "Archived",
             f"Qty in ({start}..{end})", f"Qty out ({start}..{end})", "Movements",
         ],
         (
             [
-                r.sku, r.name, r.category, r.unit_price, r.reorder_threshold, r.current_stock,
-                r.stock_value, "YES" if r.low_stock else "NO", "YES" if r.archived else "NO",
-                r.qty_in, r.qty_out, r.movement_count,
+                r.sku, r.name, r.category, r.unit.symbol, r.unit_price, fmt_qty(r.reorder_threshold),
+                fmt_qty(r.current_stock), r.stock_value, "YES" if r.low_stock else "NO",
+                "YES" if r.archived else "NO", fmt_qty(r.qty_in), fmt_qty(r.qty_out), r.movement_count,
             ]
             for r in rows
         ),
@@ -244,12 +245,13 @@ def export_movements_csv(
     return _csv_response(
         [
             "Timestamp (local)", "Movement ID", "SKU", "Product", "Type", "Source", "Quantity",
-            "Stock after", "User", "Role", "Override", "Note",
+            "Unit", "Stock after", "User", "Role", "Override", "Note",
         ],
         (
             [
                 _fmt_local(m.created_at), m.id, m.product.sku, m.product.name, m.type.value,
-                m.source.value.title(), m.quantity, m.stock_after, m.user.name, m.user.role.value,
+                m.source.value.title(), fmt_qty(m.quantity), m.product.unit.symbol, fmt_qty(m.stock_after),
+                m.user.name, m.user.role.value,
                 "YES" if m.override else "NO", m.note or "",
             ]
             for m in ms

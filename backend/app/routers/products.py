@@ -3,6 +3,7 @@
 Every query is limited to the signed-in user's business. A product, category or
 supplier belonging to another business behaves exactly as if it did not exist.
 """
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -19,7 +20,9 @@ from ..models import (
     Role,
     StockMovement,
     Supplier,
+    Unit,
     User,
+    fmt_qty,
 )
 from ..schemas import (
     ProductCreate,
@@ -113,14 +116,27 @@ def _sku_taken(db, sku: str, user: User, exclude_id: int | None = None) -> bool:
     return db.execute(q).first() is not None
 
 
+def _whole(v) -> bool:
+    return v is None or Decimal(v) == Decimal(v).to_integral_value()
+
+
+def _check_unit(unit: Unit, **amounts) -> None:
+    """Pieces are counted in whole numbers; kg, g, L, mL and m allow decimals."""
+    if unit.whole_only:
+        for field, v in amounts.items():
+            if not _whole(v):
+                raise HTTPException(422, f"{field.replace('_', ' ').capitalize()} must be a whole number for products counted in pieces")
+
+
 def _state(p: Product) -> dict:
     """The fields shown in the activity log for a product."""
     return {
         "sku": p.sku,
         "name": p.name,
         "category": p.category.name if p.category else None,
+        "unit": p.unit.value,
         "unit_price": str(p.unit_price),
-        "reorder_threshold": p.reorder_threshold,
+        "reorder_threshold": fmt_qty(p.reorder_threshold),
         "barcodes": sorted(b.code for b in p.barcodes),
         "suppliers": sorted(s.name for s in p.suppliers),
     }
@@ -201,6 +217,7 @@ def create_product(body: ProductCreate, db: DbSession, admin: ManagerUser):
     if _sku_taken(db, body.sku, admin):
         raise HTTPException(status.HTTP_409_CONFLICT, f"SKU '{body.sku}' already exists")
     _check_category(db, body.category_id, admin)
+    _check_unit(body.unit, reorder_threshold=body.reorder_threshold, initial_stock=body.initial_stock)
     _check_barcodes_free(db, body.barcodes, admin)
     suppliers = _resolve_suppliers(db, body.supplier_ids, admin)
 
@@ -210,6 +227,7 @@ def create_product(body: ProductCreate, db: DbSession, admin: ManagerUser):
         name=body.name,
         category_id=body.category_id,
         unit_price=body.unit_price,
+        unit=body.unit,
         reorder_threshold=body.reorder_threshold,
         current_stock=0,
         suppliers=suppliers,
@@ -245,6 +263,11 @@ def update_product(product_id: int, body: ProductUpdate, db: DbSession, admin: M
         raise HTTPException(status.HTTP_409_CONFLICT, f"SKU '{data['sku']}' already exists")
     if data.get("category_id") is not None:
         _check_category(db, data["category_id"], admin)
+    if data.get("unit") is not None or data.get("reorder_threshold") is not None:
+        # Switching to pieces needs whole-number stock and reorder level.
+        _check_unit(data.get("unit") or p.unit,
+                    reorder_threshold=data.get("reorder_threshold", p.reorder_threshold),
+                    current_stock=p.current_stock)
     if "barcodes" in data:
         codes = data.pop("barcodes") or []
         _check_barcodes_free(db, codes, admin, exclude_product_id=p.id)

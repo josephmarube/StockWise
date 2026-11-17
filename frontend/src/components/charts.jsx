@@ -27,20 +27,20 @@ function useWidth() {
   return [ref, w]
 }
 
-// Grouped columns: units in vs out per day. One y-axis, hover tooltip, legend, table view.
+// Grouped columns: value (Ksh, at selling price) in vs out per day. One y-axis, hover tooltip, legend, table view.
 export function TrendChart({ days }) {
   const [ref, width] = useWidth()
   const [hover, setHover] = useState(null)
   const [asTable, setAsTable] = useState(false)
-  const H = 220, M = { t: 12, r: 8, b: 26, l: 40 }
+  const H = 220, M = { t: 12, r: 8, b: 26, l: 44 }
   const iw = width - M.l - M.r, ih = H - M.t - M.b
-  const max = useMemo(() => niceMax(Math.max(1, ...days.flatMap((d) => [d.qty_in, d.qty_out]))), [days])
+  const max = useMemo(() => niceMax(Math.max(1, ...days.flatMap((d) => [d.value_in, d.value_out]))), [days])
   const ticks = [0, max / 4, max / 2, (3 * max) / 4, max]
   const band = iw / days.length
   const bar = Math.min(12, Math.max(4, (band - 10) / 2))
   const y = (v) => M.t + ih - (v / max) * ih
-  const totalIn = days.reduce((a, d) => a + d.qty_in, 0)
-  const totalOut = days.reduce((a, d) => a + d.qty_out, 0)
+  const totalIn = days.reduce((a, d) => a + d.value_in, 0)
+  const totalOut = days.reduce((a, d) => a + d.value_out, 0)
   const labelEvery = band < 34 ? 2 : 1
 
   const col = (x, v, color) => {
@@ -54,27 +54,27 @@ export function TrendChart({ days }) {
     <div className="chart" ref={ref}>
       <div className="chart-head">
         <ul className="legend" aria-label="Legend">
-          <li><i style={{ background: IN_COLOR }} />Stock in <b>{fmtNum(totalIn)}</b></li>
-          <li><i style={{ background: OUT_COLOR }} />Stock out <b>{fmtNum(totalOut)}</b></li>
+          <li><i style={{ background: IN_COLOR }} />Stock in <b>{money(totalIn)}</b></li>
+          <li><i style={{ background: OUT_COLOR }} />Stock out <b>{money(totalOut)}</b></li>
         </ul>
         <button className="link-btn" onClick={() => setAsTable((v) => !v)}>{asTable ? 'View as chart' : 'View as table'}</button>
       </div>
 
       {asTable ? (
         <div className="table-scroll">
-          <table className="table"><thead><tr><th>Day</th><th className="num">In</th><th className="num">Out</th></tr></thead>
+          <table className="table"><thead><tr><th>Day</th><th className="num">In (Ksh)</th><th className="num">Out (Ksh)</th></tr></thead>
             <tbody>{days.map((d) => (
-              <tr key={d.date}><td>{wkFmt.format(new Date(d.date))} {dayFmt.format(new Date(d.date))}</td><td className="num">{fmtNum(d.qty_in)}</td><td className="num">{fmtNum(d.qty_out)}</td></tr>
+              <tr key={d.date}><td>{wkFmt.format(new Date(d.date))} {dayFmt.format(new Date(d.date))}</td><td className="num">{money(d.value_in)}</td><td className="num">{money(d.value_out)}</td></tr>
             ))}</tbody>
           </table>
         </div>
       ) : (
         <div className="chart-plot" onMouseLeave={() => setHover(null)}>
-          <svg width={width} height={H} role="img" aria-label={`Units in and out per day for the last ${days.length} days`}>
+          <svg width={width} height={H} role="img" aria-label={`Value of stock in and out per day for the last ${days.length} days, in Kenya shillings`}>
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={M.l} x2={width - M.r} y1={y(t)} y2={y(t)} className="grid" />
-                <text x={M.l - 8} y={y(t) + 4} className="tick" textAnchor="end">{fmtNum(t)}</text>
+                <text x={M.l - 8} y={y(t) + 4} className="tick" textAnchor="end">{fmtCompact(t)}</text>
               </g>
             ))}
             {days.map((d, i) => {
@@ -82,8 +82,8 @@ export function TrendChart({ days }) {
               return (
                 <g key={d.date}>
                   {hover === i && <rect x={cx - band / 2 + 2} y={M.t} width={band - 4} height={ih} rx="6" className="hover-band" />}
-                  {col(cx - bar - 1, d.qty_in, IN_COLOR)}
-                  {col(cx + 1, d.qty_out, OUT_COLOR)}
+                  {col(cx - bar - 1, d.value_in, IN_COLOR)}
+                  {col(cx + 1, d.value_out, OUT_COLOR)}
                   {i % labelEvery === (days.length - 1) % labelEvery && (
                     <text x={cx} y={H - 8} className="tick" textAnchor="middle">{dayFmt.format(new Date(d.date)).split(' ')[0]}</text>
                   )}
@@ -96,8 +96,8 @@ export function TrendChart({ days }) {
           {hover !== null && (
             <div className="tooltip" style={{ left: Math.min(Math.max(M.l + band * hover + band / 2, 80), width - 80) }}>
               <div className="tooltip-title">{wkFmt.format(new Date(days[hover].date))} {dayFmt.format(new Date(days[hover].date))}</div>
-              <div><i style={{ background: IN_COLOR }} />In <b>{fmtNum(days[hover].qty_in)}</b></div>
-              <div><i style={{ background: OUT_COLOR }} />Out <b>{fmtNum(days[hover].qty_out)}</b></div>
+              <div><i style={{ background: IN_COLOR }} />In <b>{money(days[hover].value_in)}</b></div>
+              <div><i style={{ background: OUT_COLOR }} />Out <b>{money(days[hover].value_out)}</b></div>
             </div>
           )}
         </div>
@@ -125,3 +125,6 @@ export function BarList({ items, value, label, sub, format = fmtNum, color = OUT
 }
 
 export const money = (v) => fmtMoney(v).replace(/\.00$/, '')
+// Axis labels: 1,500 -> "1.5K", 2,000,000 -> "2M"
+const compact = new Intl.NumberFormat('en-KE', { notation: 'compact', maximumFractionDigits: 1 })
+const fmtCompact = (v) => compact.format(v)

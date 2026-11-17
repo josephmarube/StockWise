@@ -41,7 +41,7 @@ def test_fresh_database_matches_models(eng):
     migrate.upgrade_to_head()
     assert _schema_diff(eng) == []
     with eng.connect() as c:
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0005"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0006"
 
 
 def test_v1_database_upgrades_and_keeps_data(eng):

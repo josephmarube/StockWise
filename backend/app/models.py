@@ -44,6 +44,36 @@ class Role(str, enum.Enum):
 BUSINESS_ROLES = (Role.MANAGER, Role.STAFF)
 
 
+class Unit(str, enum.Enum):
+    """How a product is counted and sold (SI symbols). Pieces are whole numbers;
+    weight, volume and length allow decimals, so loose (kadogo) sales can be recorded."""
+
+    PIECE = "PIECE"
+    KG = "KG"
+    G = "G"
+    L = "L"
+    ML = "ML"
+    M = "M"
+
+    @property
+    def symbol(self) -> str:
+        return UNIT_SYMBOLS[self]
+
+    @property
+    def whole_only(self) -> bool:
+        return self is Unit.PIECE
+
+
+UNIT_SYMBOLS = {Unit.PIECE: "pc", Unit.KG: "kg", Unit.G: "g", Unit.L: "L", Unit.ML: "mL", Unit.M: "m"}
+QTY = Numeric(12, 3)  # up to 999,999,999.999 in the product's unit
+
+
+def fmt_qty(q) -> str:
+    """12.500 -> '12.5', 24.000 -> '24'."""
+    d = Decimal(q).normalize()
+    return f"{d:f}" if d != d.to_integral() else str(int(d))
+
+
 class MovementType(str, enum.Enum):
     IN = "IN"
     OUT = "OUT"
@@ -136,8 +166,9 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(200), index=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id", ondelete="RESTRICT"))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    reorder_threshold: Mapped[int] = mapped_column(Integer, default=0)
-    current_stock: Mapped[int] = mapped_column(Integer, default=0)
+    unit: Mapped[Unit] = mapped_column(Enum(Unit, name="unit"), default=Unit.PIECE, server_default=Unit.PIECE.value)
+    reorder_threshold: Mapped[Decimal] = mapped_column(QTY, default=0)
+    current_stock: Mapped[Decimal] = mapped_column(QTY, default=0)
     archived: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
@@ -163,7 +194,7 @@ class Product(Base):
     def low_stock(self) -> bool:
         return self.is_low_stock()
 
-    def apply_movement(self, type_: MovementType, qty: int) -> None:
+    def apply_movement(self, type_: MovementType, qty: Decimal) -> None:
         self.current_stock += qty if type_ == MovementType.IN else -qty
 
 
@@ -231,8 +262,8 @@ class StockMovement(Base):
         server_default=MovementSource.MANUAL.value,
         index=True,
     )
-    quantity: Mapped[int] = mapped_column(Integer)
-    stock_after: Mapped[int] = mapped_column(Integer)
+    quantity: Mapped[Decimal] = mapped_column(QTY)
+    stock_after: Mapped[Decimal] = mapped_column(QTY)
     override: Mapped[bool] = mapped_column(Boolean, default=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)

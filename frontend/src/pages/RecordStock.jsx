@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { fmtMoney, fmtNum } from '../lib/format'
+import { fmtMoney, fmtQty, unitOf, validQty } from '../lib/format'
 import ProductPicker from '../components/ProductPicker'
 import { Confirm, Field, Icon, ProductAvatar, StockBar, TypeTag, useToast } from '../components/ui'
 
@@ -38,14 +38,17 @@ export default function RecordStock() {
     if (pid) api.get(`/api/products/${pid}`).then(setProduct).catch(() => {})
   }, [params])
 
+  const unit = product?.unit || 'PIECE'
   const n = Number(qty)
-  const qtyValid = Number.isInteger(n) && n > 0 && n <= 1000000
-  const after = product && qtyValid ? product.current_stock + (type === 'IN' ? n : -n) : null
+  const qtyValid = validQty(qty, unit)
+  // Round to 3 decimals so 0.1 + 0.2 shows as 0.3
+  const after = product && qtyValid ? Math.round((product.current_stock + (type === 'IN' ? n : -n)) * 1000) / 1000 : null
+  const q = (v) => fmtQty(v, unit)
 
   function validate() {
     const e = {}
     if (!product) e.product = 'Choose a product.'
-    if (!qtyValid) e.qty = 'Enter a whole number greater than 0.'
+    if (!qtyValid) e.qty = unitOf(unit).whole ? 'Enter a whole number greater than 0.' : `Enter an amount in ${unitOf(unit).symbol}, like 0.25 or 2.`
     setErrors(e)
     return !Object.keys(e).length
   }
@@ -66,7 +69,7 @@ export default function RecordStock() {
         setProduct(null); setSource('MANUAL')
         focusLater(pickerRef)
       }
-      toast(`${type === 'IN' ? 'Added' : 'Removed'} ${fmtNum(n)} × ${product.name}. ${fmtNum(res.current_stock)} now in stock.`)
+      toast(`${type === 'IN' ? 'Added' : 'Removed'} ${unitOf(unit).whole ? `${q(n)} ×` : `${q(n)} of`} ${product.name}. ${q(res.current_stock)} now in stock.`)
       if (res.low_stock) toast(`${product.name} is at or below its reorder level.`, 'warn')
     } catch (err) {
       if (err.status === 409 && err.body.code === 'INSUFFICIENT_STOCK') setShortfall(err.body)
@@ -82,7 +85,12 @@ export default function RecordStock() {
     if (validate()) save(false)
   }
 
-  const step = (d) => setQty(String(Math.max(1, (Number.isInteger(n) ? n : 0) + d)))
+  // + and − move by a sensible amount for the unit: 1 piece, 0.25 kg, 50 g, 0.5 m...
+  const step = (d) => {
+    const st = unitOf(unit).step
+    const next = Math.round(((Number.isFinite(n) ? n : 0) + d * st) * 1000) / 1000
+    setQty(String(Math.max(st, next)))
+  }
 
   return (
     <div className="page page-narrow">
@@ -108,19 +116,21 @@ export default function RecordStock() {
         <Field label="Quantity" id="qty" error={errors.qty}>
           <div className="stepper">
             <button type="button" className="step-btn" onClick={() => step(-1)} aria-label="Decrease quantity"><Icon name="minus" size={26} /></button>
-            <input id="qty" ref={qtyRef} inputMode="numeric" pattern="[0-9]*" value={qty} aria-invalid={!!errors.qty}
-              onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))} onFocus={(e) => e.target.select()} />
+            <input id="qty" ref={qtyRef} inputMode={unitOf(unit).whole ? 'numeric' : 'decimal'} value={qty} aria-invalid={!!errors.qty}
+              aria-describedby={unitOf(unit).whole ? undefined : 'qty-unit'}
+              onChange={(e) => setQty(e.target.value.replace(/[^0-9.]/g, ''))} onFocus={(e) => e.target.select()} />
+            {!unitOf(unit).whole && <span className="qty-unit" id="qty-unit">{unitOf(unit).symbol}</span>}
             <button type="button" className="step-btn" onClick={() => step(1)} aria-label="Increase quantity"><Icon name="plus" size={26} /></button>
           </div>
         </Field>
 
         {product && after !== null && (
           <div className={`preview ${after < 0 ? 'preview-neg' : ''}`} aria-live="polite">
-            <span>{fmtNum(product.current_stock)}</span>
+            <span>{q(product.current_stock)}</span>
             <Icon name={type === 'IN' ? 'arrowIn' : 'arrowOut'} size={16} />
-            <strong>{fmtNum(after)}</strong>
+            <strong>{q(after)}</strong>
             <span className="preview-l">
-              {after < 0 ? 'not enough stock' : after <= product.reorder_threshold ? `at or below reorder level (${fmtNum(product.reorder_threshold)})` : 'after this'}
+              {after < 0 ? 'not enough stock' : after <= product.reorder_threshold ? `at or below reorder level (${q(product.reorder_threshold)})` : 'after this'}
             </span>
           </div>
         )}
@@ -141,7 +151,7 @@ export default function RecordStock() {
       {last && (
         <div className="last-saved">
           <div>
-            <strong>{last.product.name}</strong> now has {fmtNum(last.current_stock)} in stock.
+            <strong>{last.product.name}</strong> now has {fmtQty(last.current_stock, last.product.unit)} in stock.
             {' '}<Link to={`/products/${last.product.id}`} className="link">View history</Link>
           </div>
           <StockBar product={{ ...last.product, current_stock: last.current_stock }} />
@@ -151,14 +161,14 @@ export default function RecordStock() {
       {shortfall && (isManager ? (
         <Confirm title="Not enough stock" confirmLabel="Record anyway" busy={busy}
           onCancel={() => setShortfall(null)} onConfirm={() => save(true)}>
-          <p>{product.name} has <strong>{fmtNum(shortfall.available)}</strong> in stock, but you are removing <strong>{fmtNum(shortfall.requested)}</strong>.
-            Recording it will leave stock at <strong>{fmtNum(shortfall.available - shortfall.requested)}</strong>.</p>
+          <p>{product.name} has <strong>{q(shortfall.available)}</strong> in stock, but you are removing <strong>{q(shortfall.requested)}</strong>.
+            Recording it will leave stock at <strong>{q(Math.round((shortfall.available - shortfall.requested) * 1000) / 1000)}</strong>.</p>
           <p>Only do this if the physical count is higher than the system shows. The override is marked in the audit log.</p>
         </Confirm>
       ) : (
         <Confirm title="Not enough stock" confirmLabel="OK" tone="primary"
           onCancel={() => setShortfall(null)} onConfirm={() => setShortfall(null)}>
-          <p>{product.name} has only <strong>{fmtNum(shortfall.available)}</strong> in stock, so {fmtNum(shortfall.requested)} cannot be removed. Nothing was saved.</p>
+          <p>{product.name} has only <strong>{q(shortfall.available)}</strong> in stock, so {q(shortfall.requested)} cannot be removed. Nothing was saved.</p>
           <p>If the shelf count is different, ask a manager to record this stock out.</p>
         </Confirm>
       ))}
@@ -178,20 +188,21 @@ function mapFields(f = {}) {
 function SessionTally({ entries }) {
   const out = entries.filter((e) => e.type === 'OUT')
   const inn = entries.filter((e) => e.type === 'IN')
+  // Value, not units: entries can be in pieces, kg, litres or metres.
   const sum = (xs, k) => xs.reduce((a, e) => a + e[k], 0)
   return (
     <section className="panel tally" aria-labelledby="tally-h">
       <div className="panel-head"><h2 id="tally-h">This session</h2><span className="muted small">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span></div>
       <div className="tally-figures">
-        <div><span className="tally-n">{fmtNum(sum(out, 'qty'))}</span><span className="tally-l">units out · {fmtMoney(sum(out, 'value'))}</span></div>
-        <div><span className="tally-n qty-in">{fmtNum(sum(inn, 'qty'))}</span><span className="tally-l">units in</span></div>
+        <div><span className="tally-n">{fmtMoney(sum(out, 'value')).replace(/\.00$/, '')}</span><span className="tally-l">out · {out.length} {out.length === 1 ? 'entry' : 'entries'}</span></div>
+        <div><span className="tally-n qty-in">{fmtMoney(sum(inn, 'value')).replace(/\.00$/, '')}</span><span className="tally-l">in · {inn.length} {inn.length === 1 ? 'entry' : 'entries'}</span></div>
       </div>
       <ul className="tally-list">
         {entries.slice(0, 5).map((e) => (
           <li key={e.id}>
             <span className="with-avatar"><ProductAvatar name={e.product.name} categoryId={e.product.category?.id || 0} size={26} />{e.product.name}</span>
             <TypeTag type={e.type} />
-            <b className={e.type === 'IN' ? 'qty-in' : ''}>{e.type === 'IN' ? '+' : '−'}{fmtNum(e.qty)}</b>
+            <b className={e.type === 'IN' ? 'qty-in' : ''}>{e.type === 'IN' ? '+' : '−'}{fmtQty(e.qty, e.product.unit)}</b>
           </li>
         ))}
       </ul>

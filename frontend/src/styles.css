@@ -520,3 +520,7 @@ section > .table-scroll { margin-bottom: 12px; }
 .toolbar-search { margin: 18px 0 14px; max-width: 360px; }
 .badge-ok { background: var(--in-soft); color: var(--in); }
 .stack-form { display: grid; gap: 14px; }
+
+/* ---------- Units ---------- */
+.stepper { position: relative; }
+.qty-unit { position: absolute; right: 88px; top: 50%; translate: 0 -50%; font-family: var(--f-display); font-size: 22px; font-weight: 600; color: var(--ink-3); pointer-events: none; }

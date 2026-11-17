@@ -311,7 +311,7 @@ class TestFR5LowStock:
 
     def test_dashboard_totals(self, client, admin_h, product):
         d = client.get("/api/dashboard", headers=admin_h).json()
-        assert d["active_products"] == 1 and d["total_units"] == 20 and d["stock_value"] == "900.00"
+        assert d["active_products"] == 1 and d["out_of_stock_count"] == 0 and d["stock_value"] == "900.00"
         assert len(d["recent_movements"]) == 1
 
 
