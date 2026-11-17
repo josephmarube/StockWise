@@ -165,5 +165,8 @@ def test_deactivated_business_locks_out_its_users(client, other_h, admin_h, db):
     b.is_active = False
     db.commit()
     assert client.get("/api/products", headers=other_h).status_code == 401
-    assert client.post("/api/auth/login", json=OTHER_ADMIN).status_code == 401
+    r = client.post("/api/auth/login", json=OTHER_ADMIN)
+    assert r.status_code == 403 and "deactivated by StockWise" in r.json()["detail"]
+    wrong = client.post("/api/auth/login", json={**OTHER_ADMIN, "password": new_password()})
+    assert wrong.status_code == 401  # wrong password: generic message only
     assert client.get("/api/products", headers=admin_h).status_code == 200

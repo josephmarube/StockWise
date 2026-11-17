@@ -55,7 +55,8 @@ async function request(method, path, { body, params, raw } = {}) {
 
   const data = await res.json().catch(() => null)
   if (!res.ok) {
-    if (res.status === 403) throw new ApiError(403, { detail: 'You do not have permission to do that.' })
+    // Login explains a blocked account (disabled, or business deactivated); elsewhere 403 means no permission.
+    if (res.status === 403 && !path.startsWith('/api/auth/login')) throw new ApiError(403, { detail: 'You do not have permission to do that.' })
     if (res.status >= 500) throw new ApiError(res.status, { detail: data?.detail || 'Something went wrong on the server. No changes were saved.' })
     throw new ApiError(res.status, data)
   }
