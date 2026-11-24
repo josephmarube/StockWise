@@ -2,24 +2,32 @@
 
 [![CI](https://github.com/josephmarube/StockWise/actions/workflows/ci.yml/badge.svg)](https://github.com/josephmarube/StockWise/actions/workflows/ci.yml)
 
+**Live:** https://stockwise-jnxs.onrender.com (log in with the [demo accounts](#demo-accounts)). The free Render plan sleeps after 15 minutes without visits, so the first load can take up to a minute.
+
 A web-based inventory management system for small retail businesses (scoped to Nairobi, Kenya). Built to the StockWise SRS.
 
 **Many businesses, one platform.** Like Slack workspaces, each shop signs up and gets its own private space: products, stock, suppliers, staff and reports. The manager invites staff with a link. No business can see or change another's data. StockWise's own System Admins oversee the platform but see only business metadata, and everything they do is shown to the business.
 
 **Stack:** React 18 (Vite) · FastAPI · SQLAlchemy 2 + Alembic · MySQL 8 · JWT + bcrypt
 
+**Contents:** [Project structure](#project-structure) · [Quick start](#quick-start-local-development) · [Demo accounts](#demo-accounts) · [Database migrations](#database-migrations) · [Deployment](#deployment-and-docker) · [Tests](#tests) · [Design decisions](#key-design-decisions) · [API overview](#api-overview)
+
 Stock can be recorded by typing, with a USB/Bluetooth barcode scanner, or with a phone or laptop camera. Every method goes through the same rules and audit log, and each movement records how it was entered.
+
+## Project structure
+
+References such as "Appendix B.1" point to the diagrams in the StockWise SRS v2.0.
 
 ```
 stockwise/
 ├── backend/            FastAPI REST API
 │   ├── app/
 │   │   ├── main.py             app setup, CORS, error handling
-│   │   ├── models.py           SQLAlchemy entities (SRS Appendix B.1 class diagram)
+│   │   ├── models.py           SQLAlchemy entities (SRS Appendix B.1, class diagram)
 │   │   ├── schemas.py          request/response validation (NFR8)
 │   │   ├── security.py         bcrypt hashing, JWT issue/verify (NFR1, FR4.1)
 │   │   ├── deps.py             auth + role dependencies: Manager, Staff, System Admin (NFR2)
-│   │   ├── services/stock_service.py   the only code that changes stock (B.3 sequence diagram)
+│   │   ├── services/stock_service.py   the only code that changes stock (SRS Appendix B.3, sequence diagram)
 │   │   └── routers/            one router per resource (NFR9)
 │   ├── migrations/             Alembic database migrations
 │   ├── scripts/seed.py         demo data
@@ -30,7 +38,7 @@ stockwise/
 │       ├── pages/              Login, Signup, Join, Dashboard, RecordStock, Products, ProductDetail, Suppliers, Reports, Users
 │       └── components/         shared UI, ProductPicker (search + scan), BarcodeScanner (camera)
 ├── docs/
-│   ├── DEPLOY.md               Aiven + Render deployment guide
+│   ├── DEPLOY.md               Azure MySQL + Render deployment guide
 │   ├── USER_GUIDE.md           end-user guide (SRS 2.6)
 │   └── TRACEABILITY.md         requirement → code → test map
 ├── Dockerfile                  production image (frontend build + API)
@@ -40,7 +48,14 @@ stockwise/
 
 ## Quick start (local development)
 
-Prerequisites: Python 3.11+, Node 20+, MySQL 8.
+Prerequisites: Python 3.11+, Node 20+, MySQL 8, Git.
+
+**0. Get the code**
+
+```bash
+git clone https://github.com/josephmarube/StockWise.git
+cd StockWise
+```
 
 > **macOS:** the built-in `python3` is 3.9, which is too old. Use Homebrew's: `brew install python@3.12`, then create the venv with `/opt/homebrew/bin/python3.12 -m venv .venv`. Check with `python --version` once the venv is active.
 
@@ -88,7 +103,9 @@ Open http://localhost:5173. Vite proxies `/api` to port 8000.
 - *Camera:* tap **Scan**. Browsers allow the camera only on `https://` or `localhost`, so on a phone, test against the deployed (HTTPS) site rather than your laptop's network address.
 - *No scanner?* Type a barcode into the search box and press Enter.
 
-**Demo accounts** (from the seed script). There are two separate businesses, so you can see that each one sees only its own data:
+### Demo accounts
+
+These work on the live site and on a local copy after running the seed script. There are two separate businesses, so you can see that each one sees only its own data:
 
 | Business | Role | Email | Password |
 |---|---|---|---|
@@ -99,7 +116,7 @@ Open http://localhost:5173. Vite proxies `/api` to port 8000.
 | | Staff | daniel@kilimanihardware.co.ke | Staff@12345 |
 | StockWise (platform) | System Admin | support@stockwise.co.ke | System@12345 |
 
-These are demo passwords for local use. For a public deployment, seed with `SEED_PASSWORD` set: every demo account then uses that password instead.
+These are demo passwords, published so assessors can log in. Anyone can change the demo data, so the live site is reseeded before assessment. For a real deployment, seed with `SEED_PASSWORD` set: every demo account then uses that password instead.
 
 **Roles.** *Staff* record stock and view products. *Managers* also manage products, suppliers, reports, people and see the activity log. *System Admins* are StockWise staff: they see a list of businesses with counts, dates and when someone last logged in (never products, prices, stock or sales activity), can rename, deactivate or reactivate a business, and every such action appears in that business's activity log. There is no web signup for System Admins; create one from the server:
 
@@ -124,9 +141,9 @@ python -m scripts.seed --reset                        # wipe everything and relo
 
 ## Deployment and Docker
 
-Production is a single Docker image (root `Dockerfile`): FastAPI serves the API and the built React app from one HTTPS address. The database is hosted MySQL (Aiven), connected over TLS.
+Production is a single Docker image (root `Dockerfile`): FastAPI serves the API and the built React app from one HTTPS address. The database is Azure Database for MySQL, connected over TLS with certificate verification.
 
-- **Deploy to Render + Aiven:** follow [docs/DEPLOY.md](docs/DEPLOY.md). `render.yaml` is a ready-made Render Blueprint.
+- **Deploy to Render + Azure:** follow [docs/DEPLOY.md](docs/DEPLOY.md). `render.yaml` is a ready-made Render Blueprint.
 - **Run the production image locally** (needs Docker Desktop):
   ```bash
   cp .env.example .env               # fill in MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, JWT_SECRET
@@ -139,9 +156,9 @@ Production is a single Docker image (root `Dockerfile`): FastAPI serves the API 
 
 ```bash
 cd backend
-pytest                                   # fast, in-memory SQLite (177 tests)
+pytest                                   # fast, in-memory SQLite (190 tests)
 
-# Full suite against real MySQL (186 tests), adding the row-lock concurrency, migration and server-command tests:
+# Full suite against real MySQL (199 tests), adding the row-lock concurrency, migration and server-command tests:
 TEST_DATABASE_URL='mysql+pymysql://stockwise:<your-db-password>@127.0.0.1/stockwise_test' pytest
 ```
 
@@ -160,7 +177,7 @@ Measured during development: 10 concurrent users, 1,000 requests, p95 of 83–11
 ## Key design decisions
 
 - **Stock changes go through one service.** `StockService.record_movement` locks the product row (`SELECT … FOR UPDATE`), applies the negative-stock rule, updates stock and inserts the movement in one transaction. Two cashiers selling the last units at the same moment cannot oversell. `tests/test_concurrency.py` proves this, and it fails if the lock is removed.
-- **Movements are immutable and are the audit log** (FR7.1). Corrections are made with a new movement, never by editing history.
+- **Movements are immutable and are the audit log** (FR7.1). There is no endpoint to edit or delete a movement. A mistake is corrected by recording a compensating movement (the opposite type, for the difference) with the reason in its note (FR2.6), so the history shows both the mistake and the correction.
 - **Multi-business (multi-tenant) with strict isolation.** Every table carries a `business_id`, and every query filters by the signed-in user's business, read from the database on each request. Another business's records behave exactly as if they did not exist (404 or empty lists), including barcode lookups, filters by ID, reports and CSV exports. SKUs, barcodes and category names are unique per business. `tests/test_tenancy.py` attacks every resource from a second business. Each test was also checked by deliberately removing a filter: the tests fail, which shows they would catch a leak.
 - **One account belongs to one business.** Emails are unique across the platform. People join a business by signup (they become its manager) or by a manager's invite link. Invite tokens are random, single-use and expiring, and only their SHA-256 hash is stored.
 - **Rate limits** on login (20 per 5 minutes), signup (5 per hour) and invite use (10 per hour), per IP address. They are held in memory, which suits a single-instance deployment; several instances would need a shared store such as Redis.
@@ -190,7 +207,7 @@ Measured during development: 10 concurrent users, 1,000 requests, p95 of 83–11
 | GET | `/api/products` | any | Search/filter/sort catalogue (name, SKU or exact barcode) |
 | GET | `/api/products/by-barcode/{code}` | any | Find the product for a scanned barcode |
 | POST / PATCH | `/api/products[/{id}]` | manager | Create / edit |
-| POST | `/api/products/{id}/archive` · `/restore` | manager | Archive / restore |
+| POST | `/api/products/{id}/archive` · `/restore` | manager | Archive / restore (FR1.2) |
 | DELETE | `/api/products/{id}` | manager | Delete (only if no history) |
 | PUT | `/api/products/{id}/suppliers` | manager | Link suppliers |
 | POST | `/api/stock/movements` | shop | Stock in/out with `source` (`override` manager-only) |

@@ -50,6 +50,16 @@ The dashboard updates by itself every few seconds, so you will see what colleagu
 
 A message confirms the new stock level. The form stays open, so you can record the next item straight away.
 
+## Correcting a mistake
+
+Stock records can't be edited or deleted, by anyone. This keeps an honest history. To fix a wrong entry, record a second entry for the difference:
+
+- **Recorded too much going out** (for example, a sale entered as 5 that was really 3): record **Stock in 2**.
+- **Recorded too little going out** (a sale entered as 3 that was really 5): record **Stock out 2**.
+- **Deliveries:** the same idea the other way round.
+
+In the note, say what you are correcting, for example "Correction: sale on 14 Nov entered as 5, was 3". The product's history and the audit log then show both the original entry and the correction, with who made each one and when.
+
 ## Recording stock with a barcode scanner or camera
 
 If a product has a barcode, you can scan it instead of searching:
@@ -111,7 +121,7 @@ StockWise always keeps at least one active manager, and you cannot disable your 
 ## Tips for accurate stock
 
 - Record every sale and delivery as it happens, not at the end of the day.
-- Do a physical count regularly. If the shelf count differs from StockWise, record the difference as a stock in or out with the note "Count correction".
+- Do a physical count regularly. If the shelf count differs from StockWise, record the difference as a stock in or out with the note "Count correction" (see *Correcting a mistake*).
 - Set reorder levels to how many you sell between ordering and the delivery arriving.
 
 ## Activity (managers)
