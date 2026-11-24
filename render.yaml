@@ -1,18 +1,18 @@
 # Render Blueprint: New > Blueprint > pick this repo. Render builds the root Dockerfile.
-# You will be asked for the values marked sync: false (from your Aiven MySQL service).
+# You will be asked for the values marked sync: false (from your Azure Database for MySQL server; see docs/DEPLOY.md).
 services:
   - type: web
     name: stockwise
     runtime: docker
     plan: free
-    region: frankfurt          # pick the region closest to your Aiven database
+    region: frankfurt          # pick the region closest to your database
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
-      - key: DATABASE_URL        # Aiven "Service URI": mysql://avnadmin:...@...:port/defaultdb?ssl-mode=REQUIRED
+      - key: DATABASE_URL        # mysql://stockwise:<password>@<server>.mysql.database.azure.com/stockwise?ssl-mode=REQUIRED
         sync: false
-      - key: DATABASE_CA_CERT    # Aiven "CA certificate" (paste the whole PEM text)
+      - key: DATABASE_CA_CERT    # contents of azure-ca.pem (paste the whole PEM text)
         sync: false
       - key: JWT_SECRET
         generateValue: true
